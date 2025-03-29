@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-main: 121, 40, 202;
+    --primary-light: 245, 240, 255;
+    --primary-dark: 94, 23, 235;
+    
+    --text-primary: 28, 28, 30;
+    --text-secondary: 142, 142, 147;
+    
+    --background-main: 255, 255, 255;
+    --background-off: 248, 248, 248;
+  }
+  
+  body {
+    @apply text-text-primary bg-background-main;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+} 
