@@ -18,12 +18,26 @@ This project is a modern web application built with Next.js, TypeScript, and Tai
    - Personalized recommendations
 
 3. **Product Experience**
-   - Virtual try-on
+   - AI-powered virtual try-on with Kling AI
    - Outfit visualization
+   - Fashion search and discovery
 
 4. **Checkout & Fulfillment**
    - Seamless purchasing experience
    - Delivery tracking
+
+## AI Integration
+
+### Kling AI Virtual Try-On
+
+Colors of Life integrates with Kling AI's virtual try-on API to provide users with realistic clothing visualization. The feature allows users to:
+
+- Upload their own photos
+- Select clothing items from the catalog
+- See how they would look wearing the selected items
+- Experiment with different styles before purchasing
+
+This integration provides a seamless shopping experience by letting users visualize clothing items on themselves before making a purchase decision.
 
 ## Getting Started
 
