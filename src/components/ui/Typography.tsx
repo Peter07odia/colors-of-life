@@ -1,58 +1,120 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import { Text, TextStyle, StyleSheet } from 'react-native';
+import { colors } from '../../constants/colors';
 
-interface HeadingProps extends React.HTMLAttributes<HTMLHeadingElement> {
+interface HeadingProps {
+  children: React.ReactNode;
   level?: 1 | 2 | 3 | 4 | 5 | 6;
+  style?: TextStyle;
+  color?: keyof typeof colors.text;
 }
 
-export const Heading = ({ className, level = 1, ...props }: HeadingProps) => {
-  const levelStyles = {
-    1: 'text-4xl font-bold tracking-tight',
-    2: 'text-3xl font-semibold tracking-tight',
-    3: 'text-2xl font-semibold',
-    4: 'text-xl font-semibold',
-    5: 'text-lg font-medium',
-    6: 'text-base font-medium',
-  };
+export const Heading: React.FC<HeadingProps> = ({ 
+  children, 
+  level = 1, 
+  style,
+  color = 'primary'
+}) => {
+  const headingStyle = [
+    styles.base,
+    styles[`h${level}`],
+    { color: colors.text[color] },
+    style,
+  ];
 
-  if (level === 1) {
-    return <h1 className={cn('text-text-primary', levelStyles[1], className)} {...props} />;
-  } else if (level === 2) {
-    return <h2 className={cn('text-text-primary', levelStyles[2], className)} {...props} />;
-  } else if (level === 3) {
-    return <h3 className={cn('text-text-primary', levelStyles[3], className)} {...props} />;
-  } else if (level === 4) {
-    return <h4 className={cn('text-text-primary', levelStyles[4], className)} {...props} />;
-  } else if (level === 5) {
-    return <h5 className={cn('text-text-primary', levelStyles[5], className)} {...props} />;
-  } else {
-    return <h6 className={cn('text-text-primary', levelStyles[6], className)} {...props} />;
-  }
+  return <Text style={headingStyle}>{children}</Text>;
 };
 
-Heading.displayName = 'Heading';
-
-interface TextProps extends React.HTMLAttributes<HTMLParagraphElement> {
-  variant?: 'body' | 'large' | 'small' | 'muted';
+interface TextProps {
+  children: React.ReactNode;
+  variant?: 'large' | 'body' | 'small' | 'muted';
+  style?: TextStyle;
+  color?: keyof typeof colors.text;
+  numberOfLines?: number;
 }
 
-export const Text = React.forwardRef<HTMLParagraphElement, TextProps>(
-  ({ className, variant = 'body', ...props }, ref) => {
-    const variantStyles = {
-      body: 'text-base text-text-primary',
-      large: 'text-lg text-text-primary',
-      small: 'text-sm text-text-primary',
-      muted: 'text-sm text-text-secondary',
-    };
-    
-    return (
-      <p
-        className={cn(variantStyles[variant], className)}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
-);
+export const AppText: React.FC<TextProps> = ({ 
+  children, 
+  variant = 'body', 
+  style,
+  color = 'primary',
+  numberOfLines,
+}) => {
+  const textStyle = [
+    styles.base,
+    styles[variant],
+    { color: colors.text[color] },
+    style,
+  ];
 
-Text.displayName = 'Text'; 
+  return (
+    <Text style={textStyle} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
+};
+
+const styles = StyleSheet.create({
+  base: {
+    fontFamily: 'System',
+  },
+  // Headings
+  h1: {
+    fontSize: 32,
+    fontWeight: '700',
+    lineHeight: 40,
+    marginBottom: 8,
+  },
+  h2: {
+    fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 36,
+    marginBottom: 6,
+  },
+  h3: {
+    fontSize: 24,
+    fontWeight: '600',
+    lineHeight: 32,
+    marginBottom: 4,
+  },
+  h4: {
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 28,
+    marginBottom: 4,
+  },
+  h5: {
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 24,
+    marginBottom: 2,
+  },
+  h6: {
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 22,
+    marginBottom: 2,
+  },
+  // Text variants
+  large: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '400',
+  },
+  body: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
+  },
+  small: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '400',
+  },
+  muted: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '400',
+    opacity: 0.7,
+  },
+}); 

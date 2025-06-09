@@ -1,77 +1,189 @@
-# Troubleshooting Guide for Colors of Life App
+# Colors of Life Mobile - Troubleshooting Guide
 
-This guide provides solutions for common issues that may occur with the Colors of Life application.
+This guide provides solutions for common issues that may occur with the Colors of Life React Native mobile app.
 
-## Quick Solutions
+## Common Setup Issues
 
-### App Won't Start (Port Already in Use)
+### 1. "expo: command not found"
 
-If you see this error:
-```
-Error: listen EADDRINUSE: address already in use :::3337
-```
+**Problem**: Expo CLI is not installed or not in your PATH.
 
-Run these commands:
+**Solutions**:
 ```bash
-# Find the process using port 3337
-lsof -i :3337 | grep LISTEN
+# Option 1: Use npx (recommended)
+npx expo start
 
-# Kill the process (replace XXXX with the PID from the command above)
-kill -9 XXXX
+# Option 2: Install globally
+npm install -g @expo/cli
 
-# Then try starting the app again
-npm run dev
+# Option 3: Use npm scripts
+npm start
 ```
 
-### Clearing Cache and Restarting
+### 2. Dependencies Issues
 
-If the app is behaving strangely or showing outdated content:
+**Problem**: Missing or incompatible dependencies.
 
+**Solution**:
 ```bash
-# Use our clean script to remove the .next folder
+# Clear and reinstall
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### 3. Camera Permissions
+
+**Problem**: Camera not working on device.
+
+**Solutions**:
+- Make sure you're testing on a physical device (camera doesn't work in simulators)
+- Check app permissions in device settings
+- Restart the app after granting permissions
+
+### 4. Metro Bundle Issues
+
+**Problem**: Metro bundler fails to start or has cache issues.
+
+**Solution**:
+```bash
+# Clear Metro cache
+npx expo start --clear
+
+# Reset Expo cache
+npx expo r -c
+
+# Use our clean script
 npm run clean
-
-# Then start the development server
-npm run dev
-
-# Or do both in one command
-npm run dev:clean
 ```
 
-### Hidden App Reset Tool
+### 5. iOS Simulator Issues
 
-The app includes a hidden troubleshooting tool that you can access by pressing:
-**Ctrl+Shift+R**
+**Problem**: App not loading on iOS simulator.
 
-This tool allows you to:
-1. Diagnose common app issues
-2. Reset the app state (clears localStorage)
+**Solutions**:
+```bash
+# Make sure iOS simulator is running
+npx expo run:ios
 
-### Common Next.js Issues
+# Or install Expo Go app on simulator
+npx expo start
+# Then press 'i' to open in iOS simulator
+```
 
-1. **Page Not Found or 404 Errors**
-   - Check your routing in the `app` directory
-   - Make sure file naming follows Next.js conventions
+### 6. Android Emulator Issues
 
-2. **Hydration Errors**
-   - Look for components that render differently on server vs client
-   - Wrap client-only components with `'use client'` directive
+**Problem**: App not loading on Android emulator.
 
-3. **API Issues**
-   - Check your API routes in `app/api` directory
-   - Verify environment variables are set correctly in `.env.local`
+**Solutions**:
+```bash
+# Make sure Android emulator is running
+npx expo run:android
 
-4. **Build Failures**
-   - Delete `.next` folder: `npm run clean`
-   - Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
+# Or install Expo Go app on emulator
+npx expo start
+# Then press 'a' to open in Android emulator
+```
 
-## When to Clean/Reset
+### 7. TypeScript Errors
 
-- After pulling new code from the repository
-- When encountering strange UI bugs or unexpected behavior
-- After upgrading Next.js or major dependencies
-- When the app gets into a state where reloading doesn't help
+**Problem**: TypeScript compilation errors.
+
+**Solution**:
+```bash
+# Check TypeScript configuration
+npx tsc --noEmit
+
+# Install missing type definitions
+npm install --save-dev @types/react @types/react-native
+```
+
+### 8. Supabase Connection Issues
+
+**Problem**: Cannot connect to Supabase.
+
+**Solutions**:
+1. Update `src/services/supabase.ts` with your project credentials
+2. Check your Supabase project is active
+3. Verify API keys are correct
+
+### 9. Navigation Issues
+
+**Problem**: Navigation not working properly.
+
+**Solution**:
+```bash
+# Make sure all navigation dependencies are installed
+npm install @react-navigation/native @react-navigation/bottom-tabs
+npx expo install react-native-screens react-native-safe-area-context
+```
+
+### 10. Build Issues
+
+**Problem**: Expo build fails.
+
+**Solutions**:
+```bash
+# Check for build errors
+npx expo doctor
+
+# Clear cache and restart
+npm run clean
+npm start
+```
+
+### 11. NativeWind/Tailwind Issues
+
+**Problem**: Styles not applying correctly.
+
+**Solutions**:
+```bash
+# Make sure NativeWind is properly configured
+# Check tailwind.config.js includes React Native files
+# Restart Metro bundler after config changes
+npm run clean
+npm start
+```
+
+### 12. AsyncStorage Issues
+
+**Problem**: Data not persisting between app sessions.
+
+**Solutions**:
+- Check AsyncStorage imports are correct
+- Verify data is being properly serialized/deserialized
+- Test on physical device (some simulators have storage limitations)
+
+## Development Tips
+
+### Quick Reset Commands
+```bash
+# Clean everything and restart
+npm run clean && npm start
+
+# Reset Expo cache
+npx expo r -c
+
+# Clear node modules
+rm -rf node_modules && npm install
+```
+
+### Debugging
+- Use React Native Debugger for better debugging experience
+- Check Metro bundler logs for detailed error information
+- Use `console.log` statements and view them in the terminal
+
+### Performance
+- Test on physical devices for accurate performance metrics
+- Use React Native Performance Monitor
+- Optimize images and assets for mobile
 
 ## Contact Support
 
-If you continue experiencing issues after trying these solutions, please contact the development team at [support@colorsoflife.com](mailto:support@colorsoflife.com). 
+If you continue experiencing issues after trying these solutions, please:
+1. Check the GitHub repository for known issues
+2. Create a new issue with detailed error logs
+3. Contact the development team
+
+---
+
+**Built for React Native with ❤️** 

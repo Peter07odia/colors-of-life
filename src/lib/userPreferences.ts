@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // User Style Preferences Types
 export interface StylePreference {
   categories: string[];
@@ -18,19 +20,19 @@ export const defaultPreferences: StylePreference = {
   fit: []
 };
 
-// Save user preferences to localStorage
-export const saveUserPreferences = (preferences: StylePreference): void => {
+// Save user preferences to AsyncStorage (mobile-friendly)
+export const saveUserPreferences = async (preferences: StylePreference): Promise<void> => {
   try {
-    localStorage.setItem('userStylePreferences', JSON.stringify(preferences));
+    await AsyncStorage.setItem('userStylePreferences', JSON.stringify(preferences));
   } catch (error) {
     console.error('Error saving user preferences:', error);
   }
 };
 
-// Get user preferences from localStorage
-export const getUserPreferences = (): StylePreference => {
+// Get user preferences from AsyncStorage (mobile-friendly)
+export const getUserPreferences = async (): Promise<StylePreference> => {
   try {
-    const savedPreferences = localStorage.getItem('userStylePreferences');
+    const savedPreferences = await AsyncStorage.getItem('userStylePreferences');
     if (savedPreferences) {
       return JSON.parse(savedPreferences);
     }

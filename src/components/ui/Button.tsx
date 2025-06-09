@@ -1,49 +1,141 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import { 
+  TouchableOpacity, 
+  Text, 
+  View, 
+  ActivityIndicator,
+  ViewStyle,
+  TextStyle,
+  StyleSheet 
+} from 'react-native';
+import { colors } from '../../constants/colors';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'text';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
+  disabled?: boolean;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', isLoading, children, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light disabled:opacity-50';
-    
-    const variantStyles = {
-      primary: 'bg-primary-main text-white hover:bg-primary-dark',
-      secondary: 'bg-primary-light text-primary-main hover:bg-primary-light/90',
-      outline: 'border border-primary-main text-primary-main hover:bg-primary-light',
-      text: 'text-primary-main hover:bg-primary-light/50',
-    };
-    
-    const sizeStyles = {
-      sm: 'h-8 px-3 text-sm',
-      md: 'h-10 px-4',
-      lg: 'h-12 px-6 text-lg',
-    };
-    
-    return (
-      <button
-        className={cn(
-          baseStyles,
-          variantStyles[variant],
-          sizeStyles[size],
-          isLoading && 'cursor-not-allowed',
-          className
-        )}
-        ref={ref}
-        disabled={isLoading || props.disabled}
-        {...props}
-      >
-        {isLoading ? (
-          <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : null}
-        {children}
-      </button>
-    );
-  }
-);
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  variant = 'primary',
+  size = 'md',
+  isLoading = false,
+  disabled = false,
+  style,
+  textStyle,
+}) => {
+  const buttonStyle = [
+    styles.base,
+    styles[`size_${size}`],
+    styles[`variant_${variant}`],
+    disabled && styles.disabled,
+    style,
+  ];
 
-Button.displayName = 'Button'; 
+  const textColor = variant === 'primary' 
+    ? colors.white 
+    : variant === 'outline' || variant === 'text'
+            ? colors.primary
+        : colors.primary;
+
+  return (
+    <TouchableOpacity
+      style={buttonStyle}
+      onPress={onPress}
+      disabled={disabled || isLoading}
+      activeOpacity={0.7}
+    >
+      <View style={styles.content}>
+        {isLoading && (
+          <ActivityIndicator 
+            size="small" 
+            color={textColor} 
+            style={styles.loading}
+          />
+        )}
+        <Text 
+          style={[
+            styles.text,
+            styles[`textSize_${size}`],
+            { color: textColor },
+            textStyle,
+          ]}
+        >
+          {title}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const styles = StyleSheet.create({
+  base: {
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44, // iOS minimum touch target
+  },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  loading: {
+    marginRight: 8,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  // Variants
+  variant_primary: {
+    backgroundColor: colors.primary,
+  },
+  variant_secondary: {
+    backgroundColor: colors.primaryLight,
+  },
+  variant_outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  variant_text: {
+    backgroundColor: 'transparent',
+  },
+  // Sizes
+  size_sm: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 36,
+  },
+  size_md: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  size_lg: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    minHeight: 52,
+  },
+  // Text sizes
+  textSize_sm: {
+    fontSize: 14,
+  },
+  textSize_md: {
+    fontSize: 16,
+  },
+  textSize_lg: {
+    fontSize: 18,
+  },
+}); 

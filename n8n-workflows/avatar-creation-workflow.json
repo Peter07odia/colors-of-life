@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "instanceId": "local"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "avatar-creation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook - Avatar Creation",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "avatar-creation"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate input data\nconst inputData = $input.first().json;\n\nconst {\n  userId,\n  userPhotoBase64,\n  avatarType,\n  executionId,\n  supabaseUrl,\n  supabaseServiceKey\n} = inputData;\n\n// Validate required fields\nif (!userId || !userPhotoBase64 || !supabaseUrl || !supabaseServiceKey) {\n  throw new Error('Missing required fields: userId, userPhotoBase64, supabaseUrl, supabaseServiceKey');\n}\n\n// Create output object\nreturn {\n  userId,\n  userPhotoBase64,\n  avatarType: avatarType || 'custom',\n  executionId,\n  supabaseUrl,\n  supabaseServiceKey,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "2",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "generate",
+        "prompt": "Remove the background from this image, keeping only the person in the foreground. Make the background completely transparent.",
+        "options": {
+          "response_format": "b64_json",
+          "size": "1024x1024"
+        }
+      },
+      "id": "3",
+      "name": "OpenAI - Remove Background",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process OpenAI response and prepare for Supabase upload\nconst openAiResponse = $input.first().json;\nconst inputData = $('Validate Input').first().json;\n\n// Extract the image data from OpenAI response\nconst imageData = openAiResponse.data?.[0]?.b64_image || openAiResponse.b64_json;\n\nif (!imageData) {\n  throw new Error('No image data received from OpenAI');\n}\n\n// Generate filename\nconst timestamp = Date.now();\nconst filename = `avatar_${inputData.userId}_${timestamp}.png`;\n\nreturn {\n  ...inputData,\n  processedImageBase64: imageData,\n  filename,\n  contentType: 'image/png'\n};"
+      },
+      "id": "4",
+      "name": "Process Image Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "upload",
+        "bucketName": "avatars",
+        "fileName": "={{ $json.filename }}",
+        "binaryData": false,
+        "fileContent": "={{ $json.processedImageBase64 }}",
+        "options": {
+          "contentType": "{{ $json.contentType }}"
+        }
+      },
+      "id": "5",
+      "name": "Upload to Supabase Storage",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for database insertion\nconst uploadResponse = $input.first().json;\nconst processedData = $('Process Image Response').first().json;\n\n// Get the public URL from Supabase\nconst avatarUrl = uploadResponse.publicUrl || uploadResponse.url;\n\nif (!avatarUrl) {\n  throw new Error('Failed to get avatar URL from upload response');\n}\n\nreturn {\n  userId: processedData.userId,\n  avatarUrl,\n  avatarType: processedData.avatarType,\n  originalImageBase64: processedData.userPhotoBase64.substring(0, 100) + '...', // Store truncated for reference\n  executionId: processedData.executionId,\n  supabaseUrl: processedData.supabaseUrl,\n  supabaseServiceKey: processedData.supabaseServiceKey\n};"
+      },
+      "id": "6",
+      "name": "Prepare DB Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "insert",
+        "table": "user_avatars",
+        "records": [\n          {\n            "user_id": "={{ $json.userId }}",\n            "avatar_url": "={{ $json.avatarUrl }}",\n            "avatar_type": "={{ $json.avatarType }}",\n            "is_primary": true,\n            "processing_status": "completed",\n            "n8n_task_id": "={{ $workflow.executionId }}"\n          }\n        ]\n      },\n      "id": "7",\n      "name": "Save Avatar to DB",\n      "type": "n8n-nodes-base.supabase",\n      "typeVersion": 1,\n      "position": [\n        1560,\n        300\n      ],\n      "credentials": {\n        "supabaseApi": {\n          "id": "supabase-credentials",\n          "name": "Supabase Account"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "authentication": "serviceAccount",\n        "operation": "update",\n        "table": "n8n_workflow_executions",\n        "filterType": "manual",\n        "matchingColumns": [\n          {\n            "column": "id",\n            "value": "={{ $('Prepare DB Data').first().json.executionId }}"\n          }\n        ],\n        "records": [\n          {\n            "execution_status": "success",\n            "result_data": {\n              "avatar_url": "={{ $('Prepare DB Data').first().json.avatarUrl }}",\n              "avatar_id": "={{ $json.id }}"\n            },\n            "completed_at": "={{ new Date().toISOString() }}"\n          }\n        ]\n      },\n      "id": "8",\n      "name": "Update Execution Status",\n      "type": "n8n-nodes-base.supabase",\n      "typeVersion": 1,\n      "position": [\n        1780,\n        300\n      ],\n      "credentials": {\n        "supabaseApi": {\n          "id": "supabase-credentials",\n          "name": "Supabase Account"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "respondWith": "json",\n        "responseBody": "={{ { \"success\": true, \"message\": \"Avatar created successfully\", \"avatarId\": $json.id, \"avatarUrl\": $('Prepare DB Data').first().json.avatarUrl, \"executionId\": $workflow.executionId } }}"\n      },\n      "id": "9",\n      "name": "Success Response",\n      "type": "n8n-nodes-base.respondToWebhook",\n      "typeVersion": 1,\n      "position": [\n        2000,\n        300\n      ]\n    },\n    {\n      "parameters": {\n        "jsCode": "// Handle errors and update execution status\nconst error = $input.first().error;\nconst inputData = $('Validate Input').first()?.json || {};\n\nconsole.error('Avatar creation failed:', error);\n\n// Try to update execution status if we have the execution ID\nif (inputData.executionId) {\n  // This will be handled by the error update node\n  return {\n    error: error.message || 'Unknown error',\n    executionId: inputData.executionId,\n    userId: inputData.userId\n  };\n}\n\nreturn {\n  error: error.message || 'Unknown error'\n};"\n      },\n      "id": "10",\n      "name": "Handle Error",\n      "type": "n8n-nodes-base.code",\n      "typeVersion": 2,\n      "position": [\n        1340,\n        500\n      ]\n    },\n    {\n      "parameters": {\n        "authentication": "serviceAccount",\n        "operation": "update",\n        "table": "n8n_workflow_executions",\n        "filterType": "manual",\n        "matchingColumns": [\n          {\n            "column": "id",\n            "value": "={{ $json.executionId }}"\n          }\n        ],\n        "records": [\n          {\n            "execution_status": "error",\n            "error_message": "={{ $json.error }}",\n            "completed_at": "={{ new Date().toISOString() }}"\n          }\n        ]\n      },\n      "id": "11",\n      "name": "Update Error Status",\n      "type": "n8n-nodes-base.supabase",\n      "typeVersion": 1,\n      "position": [\n        1560,\n        500\n      ],\n      "credentials": {\n        "supabaseApi": {\n          "id": "supabase-credentials",\n          "name": "Supabase Account"\n        }\n      }\n    },\n    {\n      "parameters": {\n        "respondWith": "json",\n        "responseBody": "={{ { \"success\": false, \"error\": $json.error, \"executionId\": $workflow.executionId } }}",\n        "options": {\n          "responseCode": 400\n        }\n      },\n      "id": "12",\n      "name": "Error Response",\n      "type": "n8n-nodes-base.respondToWebhook",\n      "typeVersion": 1,\n      "position": [\n        1780,\n        500\n      ]\n    }\n  ],\n  "connections": {\n    "Webhook - Avatar Creation": {\n      "main": [\n        [\n          {\n            "node": "Validate Input",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Validate Input": {\n      "main": [\n        [\n          {\n            "node": "OpenAI - Remove Background",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "OpenAI - Remove Background": {\n      "main": [\n        [\n          {\n            "node": "Process Image Response",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Process Image Response": {\n      "main": [\n        [\n          {\n            "node": "Upload to Supabase Storage",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Upload to Supabase Storage": {\n      "main": [\n        [\n          {\n            "node": "Prepare DB Data",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Prepare DB Data": {\n      "main": [\n        [\n          {\n            "node": "Save Avatar to DB",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Save Avatar to DB": {\n      "main": [\n        [\n          {\n            "node": "Update Execution Status",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Update Execution Status": {\n      "main": [\n        [\n          {\n            "node": "Success Response",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Handle Error": {\n      "main": [\n        [\n          {\n            "node": "Update Error Status",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    },\n    "Update Error Status": {\n      "main": [\n        [\n          {\n            "node": "Error Response",\n            "type": "main",\n            "index": 0\n          }\n        ]\n      ]\n    }\n  },\n  "pinData": {},\n  "settings": {\n    "executionOrder": "v1"\n  },\n  "staticData": null,\n  "tags": [\n    {\n      "createdAt": "2025-01-09T04:47:00.000Z",\n      "updatedAt": "2025-01-09T04:47:00.000Z",\n      "id": "avatar-creation",\n      "name": "avatar-creation"\n    }\n  ],\n  "triggerCount": 1,\n  "updatedAt": "2025-01-09T04:47:00.000Z",\n  "versionId": "1"\n} 

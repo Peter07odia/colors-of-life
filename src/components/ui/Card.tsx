@@ -1,94 +1,90 @@
 import React from 'react';
-import { cn } from '../../lib/utils';
+import { View, ViewStyle, StyleSheet } from 'react-native';
+import { colors } from '../../constants/colors';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CardProps {
+  children: React.ReactNode;
   variant?: 'default' | 'elevated' | 'outline';
+  style?: ViewStyle;
 }
 
-export const Card = React.forwardRef<HTMLDivElement, CardProps>(
-  ({ className, variant = 'default', ...props }, ref) => {
-    const variantStyles = {
-      default: 'bg-white',
-      elevated: 'bg-white shadow-md',
-      outline: 'border border-gray-200 bg-white',
-    };
+export const Card: React.FC<CardProps> = ({
+  children,
+  variant = 'default',
+  style,
+}) => {
+  return (
+    <View style={[styles.base, styles[variant], style]}>
+      {children}
+    </View>
+  );
+};
 
-    return (
-      <div
-        className={cn(
-          'rounded-xl p-6',
-          variantStyles[variant],
-          className
-        )}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
+interface CardHeaderProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}
+
+export const CardHeader: React.FC<CardHeaderProps> = ({ children, style }) => (
+  <View style={[styles.header, style]}>{children}</View>
 );
 
-Card.displayName = 'Card';
+interface CardContentProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}
 
-interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <div
-        className={cn('mb-4', className)}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
+export const CardContent: React.FC<CardContentProps> = ({ children, style }) => (
+  <View style={[styles.content, style]}>{children}</View>
 );
 
-CardHeader.displayName = 'CardHeader';
+interface CardFooterProps {
+  children: React.ReactNode;
+  style?: ViewStyle;
+}
 
-interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {}
-
-export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <h3
-        className={cn('text-xl font-semibold text-text-primary', className)}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
+export const CardFooter: React.FC<CardFooterProps> = ({ children, style }) => (
+  <View style={[styles.footer, style]}>{children}</View>
 );
 
-CardTitle.displayName = 'CardTitle';
-
-interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export const CardContent = React.forwardRef<HTMLDivElement, CardContentProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <div
-        className={cn('text-text-secondary', className)}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
-);
-
-CardContent.displayName = 'CardContent';
-
-interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export const CardFooter = React.forwardRef<HTMLDivElement, CardFooterProps>(
-  ({ className, ...props }, ref) => {
-    return (
-      <div
-        className={cn('mt-4 flex justify-end', className)}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
-);
-
-CardFooter.displayName = 'CardFooter'; 
+const styles = StyleSheet.create({
+  base: {
+    borderRadius: 16,
+    backgroundColor: colors.background.main,
+    overflow: 'hidden',
+  },
+  default: {
+    backgroundColor: colors.background.main,
+  },
+  elevated: {
+    backgroundColor: colors.background.main,
+    shadowColor: colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3, // Android shadow
+  },
+  outline: {
+    backgroundColor: colors.background.main,
+    borderWidth: 1,
+    borderColor: colors.background.off,
+  },
+  header: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  content: {
+    padding: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  footer: {
+    padding: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.background.off,
+  },
+}); 

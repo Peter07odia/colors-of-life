@@ -1,4 +1,4 @@
-'use client';
+
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '../ui/Button';
@@ -7,6 +7,8 @@ interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  onRetry?: () => void;
+  onNavigateHome?: () => void;
 }
 
 interface ErrorBoundaryState {
@@ -72,7 +74,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <div className="flex flex-col space-y-3">
               <Button 
                 variant="primary" 
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  // React Native equivalent of page reload
+                  if (this.props.onRetry) {
+                    this.props.onRetry();
+                  }
+                }}
                 className="w-full"
               >
                 Refresh Page
@@ -86,7 +93,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               </Button>
               <Button 
                 variant="text" 
-                onClick={() => window.location.href = '/'}
+                onClick={() => {
+                  // React Native navigation to home
+                  if (this.props.onNavigateHome) {
+                    this.props.onNavigateHome();
+                  }
+                }}
                 className="w-full"
               >
                 Go to Home Page

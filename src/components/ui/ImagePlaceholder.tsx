@@ -1,48 +1,93 @@
 import React from 'react';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { Image, User, ShoppingBag } from 'lucide-react-native';
+import { AppText } from './Typography';
+import { colors } from '../../constants/colors';
 
 interface ImagePlaceholderProps {
-  type: 'feed' | 'avatar' | 'product';
-  className?: string;
+  type?: 'feed' | 'avatar' | 'product';
+  style?: ViewStyle;
+  showIcon?: boolean;
 }
 
-export function ImagePlaceholder({ type, className = '' }: ImagePlaceholderProps) {
+export function ImagePlaceholder({ 
+  type = 'feed', 
+  style,
+  showIcon = true 
+}: ImagePlaceholderProps) {
   const getPlaceholderContent = () => {
+    if (!showIcon) {
+      return null;
+    }
+
     switch (type) {
       case 'feed':
         return (
-          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-            <div className="text-gray-600 text-center">
-              <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p className="text-sm">Image not found</p>
-            </div>
-          </div>
+          <View style={styles.iconContainer}>
+            <Image color={colors.text.secondary} size={24} />
+            <AppText variant="small" style={styles.placeholderText}>
+              Image not found
+            </AppText>
+          </View>
         );
       case 'avatar':
         return (
-          <div className="w-full h-full bg-gray-800 rounded-full flex items-center justify-center">
-            <svg className="w-1/2 h-1/2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
+          <View style={styles.iconContainer}>
+            <User color={colors.text.secondary} size={24} />
+          </View>
         );
       case 'product':
         return (
-          <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
-            <svg className="w-1/2 h-1/2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-          </div>
+          <View style={styles.iconContainer}>
+            <ShoppingBag color={colors.text.secondary} size={24} />
+          </View>
         );
       default:
         return null;
     }
   };
 
+  const getContainerStyle = () => {
+    switch (type) {
+      case 'avatar':
+        return [styles.container, styles.avatarContainer];
+      case 'product':
+        return [styles.container, styles.productContainer];
+      default:
+        return [styles.container, styles.feedContainer];
+    }
+  };
+
   return (
-    <div className={`${className} overflow-hidden`}>
+    <View style={[getContainerStyle(), style]}>
       {getPlaceholderContent()}
-    </div>
+    </View>
   );
-} 
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background.off,
+  },
+  feedContainer: {
+    borderRadius: 8,
+  },
+  avatarContainer: {
+    borderRadius: 50, // Make it circular
+  },
+  productContainer: {
+    borderRadius: 8,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    marginTop: 8,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+}); 

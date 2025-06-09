@@ -28,7 +28,9 @@ export async function searchFashion(params: SearchParams): Promise<SearchRespons
   
   try {
     // Build URL with search parameters
-    const searchUrl = new URL('/api/fashion/search', window.location.origin);
+    // For React Native, use environment variable or hardcoded API base URL
+    const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.colorsoflife.app';
+    const searchUrl = new URL('/api/fashion/search', apiBaseUrl);
     searchUrl.searchParams.append('query', query);
     
     if (category) {

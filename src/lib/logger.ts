@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 /**
  * Application Logger Service
  * Provides consistent logging patterns across the application
@@ -21,16 +23,20 @@ class Logger {
   private logHistory: LogEntry[] = [];
   
   constructor() {
-    // In development mode, keep logs between hot reloads
-    if (typeof window !== 'undefined' && !isProduction) {
-      const savedLogs = window.sessionStorage.getItem('app_logs');
+    // In development mode, keep logs between app sessions
+    if (!isProduction) {
+      this.loadSavedLogs();
+    }
+  }
+
+  private async loadSavedLogs() {
+    try {
+      const savedLogs = await AsyncStorage.getItem('app_logs');
       if (savedLogs) {
-        try {
-          this.logHistory = JSON.parse(savedLogs);
-        } catch (e) {
-          console.warn('Failed to parse saved logs');
-        }
+        this.logHistory = JSON.parse(savedLogs);
       }
+    } catch (e) {
+      console.warn('Failed to parse saved logs');
     }
   }
   
@@ -53,10 +59,10 @@ class Logger {
       this.logHistory = this.logHistory.slice(0, MAX_LOG_HISTORY);
     }
     
-    // In development, persist logs in session storage
-    if (typeof window !== 'undefined' && !isProduction) {
+    // In development, persist logs in AsyncStorage
+    if (!isProduction) {
       try {
-        window.sessionStorage.setItem('app_logs', JSON.stringify(this.logHistory));
+        AsyncStorage.setItem('app_logs', JSON.stringify(this.logHistory));
       } catch (e) {
         // Ignore storage errors
       }
@@ -142,8 +148,10 @@ class Logger {
   clearHistory(): void {
     this.logHistory = [];
     
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem('app_logs');
+    try {
+      AsyncStorage.removeItem('app_logs');
+    } catch (e) {
+      // Ignore storage errors
     }
   }
   
