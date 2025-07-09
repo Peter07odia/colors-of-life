@@ -16,6 +16,8 @@ export const colors = {
   border: {
     light: '#E5E5E7',
   },
+  success: '#34C759',
+  error: '#FF3B30',
   white: '#FFFFFF',
   black: '#000000',
 } as const;

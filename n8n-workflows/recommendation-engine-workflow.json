@@ -1,0 +1,270 @@
+{
+  "meta": {
+    "instanceId": "colorsoflife"
+  },
+  "name": "AI-Powered Recommendation Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recommendations",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "🎯 Recommendations Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "recommendations"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Recommendation Context Builder\n// Purpose: Gather user context for personalized recommendations\n// Features: User history, preferences, current trends, weather, occasion\n\nconst inputData = $input.first().json;\n\nconst {\n  userId,\n  recommendationType = 'general', // 'general', 'occasion', 'weather', 'style_evolution'\n  occasionContext = {},\n  weatherContext = {},\n  userLocation = {},\n  maxRecommendations = 20\n} = inputData;\n\nif (!userId) {\n  throw new Error('User ID is required for recommendations');\n}\n\n// Build comprehensive context\nconst recommendationContext = {\n  userId,\n  recommendationType,\n  occasionContext,\n  weatherContext,\n  userLocation,\n  maxRecommendations,\n  contextSources: {\n    userProfile: true,\n    styleHistory: true,\n    trendsAnalysis: true,\n    weatherData: !!weatherContext.temperature,\n    occasionData: !!occasionContext.event\n  },\n  timestamp: new Date().toISOString(),\n  processingSteps: {\n    step1: 'gather_user_data',\n    step2: 'analyze_preferences',\n    step3: 'fetch_trends',\n    step4: 'generate_recommendations',\n    step5: 'rank_and_filter'\n  }\n};\n\nreturn recommendationContext;"
+      },
+      "id": "context-builder",
+      "name": "🧠 Recommendation Context Builder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "select",
+        "table": "profiles",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.userId }}"
+          }
+        ],
+        "options": {
+          "select": "*, user_style_profiles(*), user_favorites(*)"
+        }
+      },
+      "id": "fetch-user-profile",
+      "name": "👤 Fetch User Profile & Preferences",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "select",
+        "table": "virtual_tryon_results",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "user_id",
+            "value": "={{ $json.userId }}"
+          }
+        ],
+        "options": {
+          "limit": 50,
+          "orderBy": "created_at desc"
+        }
+      },
+      "id": "fetch-style-history",
+      "name": "📊 Fetch Style History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 350],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "credentialType": "mcpClientCommandLineApi",
+        "operation": "executeTool",
+        "toolName": "trend_analysis",
+        "toolParameters": {
+          "season": "={{ new Date().getMonth() < 3 ? 'winter' : new Date().getMonth() < 6 ? 'spring' : new Date().getMonth() < 9 ? 'summer' : 'fall' }}",
+          "location": "={{ $json.userLocation.country || 'global' }}",
+          "demographic": "={{ $('Fetch User Profile & Preferences').first().json.gender || 'all' }}"
+        }
+      },
+      "id": "fetch-trends",
+      "name": "📈 Fetch Current Fashion Trends",
+      "type": "n8n-nodes-mcp.mcpClient",
+      "typeVersion": 1,
+      "position": [680, 500],
+      "credentials": {
+        "mcpClientCommandLineApi": {
+          "id": "mcp-fashion-trends",
+          "name": "MCP Fashion Trends"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo-preview",
+        "options": {
+          "systemMessage": "You are an AI Fashion Recommendation Engine. Analyze the user's profile, style history, and current trends to generate personalized fashion recommendations.\n\nUser Profile: {{ JSON.stringify($('Fetch User Profile & Preferences').first().json) }}\nStyle History: {{ JSON.stringify($('Fetch Style History').first().json) }}\nCurrent Trends: {{ JSON.stringify($('Fetch Current Fashion Trends').first().json) }}\nContext: {{ JSON.stringify($('Recommendation Context Builder').first().json) }}\n\nGenerate 20 specific fashion recommendations with:\n1. Item description\n2. Style reasoning\n3. Occasion suitability\n4. Confidence score (1-100)\n5. Price range\n6. Shopping links if available\n\nFormat as JSON array with detailed explanations.",
+          "temperature": 0.7,
+          "maxTokens": 3000
+        }
+      },
+      "id": "ai-recommendation-engine",
+      "name": "🤖 AI Recommendation Engine",
+      "type": "@n8n/n8n-nodes-langchain.llm",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Recommendation Processor & Ranker\n// Purpose: Process AI recommendations and enhance with database matches\n// Features: Ranking algorithm, preference matching, availability checking\n\nconst aiRecommendations = $input.first().json;\nconst userProfile = $('Fetch User Profile & Preferences').first().json;\nconst styleHistory = $('Fetch Style History').first().json;\nconst trendsData = $('Fetch Current Fashion Trends').first().json;\nconst context = $('Recommendation Context Builder').first().json;\n\n// Parse AI recommendations\nlet recommendations = [];\ntry {\n  const aiText = aiRecommendations.text || aiRecommendations.response || aiRecommendations.output;\n  const jsonMatch = aiText.match(/\\[.*\\]/s);\n  if (jsonMatch) {\n    recommendations = JSON.parse(jsonMatch[0]);\n  }\n} catch (error) {\n  console.error('Failed to parse AI recommendations:', error.message);\n  // Fallback to basic recommendations\n  recommendations = [\n    {\n      item: \"Classic White Button-Down Shirt\",\n      description: \"Versatile wardrobe staple perfect for professional and casual occasions\",\n      confidenceScore: 85,\n      priceRange: \"$50-150\",\n      occasion: [\"work\", \"casual\"],\n      style: [\"minimalist\", \"professional\"]\n    }\n  ];\n}\n\n// Enhanced ranking algorithm\nfunction calculateRecommendationScore(rec, userProfile, styleHistory) {\n  let score = rec.confidenceScore || 50;\n  \n  // User preference matching\n  const userStyles = userProfile.style_preferences?.preferred_styles || [];\n  const recStyles = rec.style || [];\n  const styleMatch = userStyles.filter(s => recStyles.includes(s)).length;\n  score += styleMatch * 10;\n  \n  // Style history alignment\n  const recentCategories = styleHistory.slice(0, 10).map(h => h.clothing_item_data?.category).filter(Boolean);\n  const categoryFrequency = recentCategories.reduce((acc, cat) => {\n    acc[cat] = (acc[cat] || 0) + 1;\n    return acc;\n  }, {});\n  \n  if (rec.category && categoryFrequency[rec.category]) {\n    score += categoryFrequency[rec.category] * 5;\n  }\n  \n  // Trend alignment\n  if (rec.trendy) score += 15;\n  if (rec.seasonal) score += 10;\n  \n  return Math.min(score, 100);\n}\n\n// Process and rank recommendations\nconst processedRecommendations = recommendations.map((rec, index) => ({\n  id: `rec_${context.userId}_${Date.now()}_${index}`,\n  ...rec,\n  finalScore: calculateRecommendationScore(rec, userProfile, styleHistory),\n  userId: context.userId,\n  generatedAt: new Date().toISOString(),\n  recommendationType: context.recommendationType\n}));\n\n// Sort by final score\nprocessedRecommendations.sort((a, b) => b.finalScore - a.finalScore);\n\n// Limit to requested number\nconst finalRecommendations = processedRecommendations.slice(0, context.maxRecommendations);\n\nreturn {\n  success: true,\n  userId: context.userId,\n  recommendationType: context.recommendationType,\n  recommendations: finalRecommendations,\n  metadata: {\n    totalGenerated: recommendations.length,\n    totalReturned: finalRecommendations.length,\n    averageConfidence: finalRecommendations.reduce((sum, r) => sum + r.finalScore, 0) / finalRecommendations.length,\n    contextUsed: context.contextSources,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "process-recommendations",
+      "name": "📊 Recommendation Processor & Ranker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "recommendations-response",
+      "name": "✅ Recommendations Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "🎯 Recommendations Webhook": {
+      "main": [
+        [
+          {
+            "node": "🧠 Recommendation Context Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Recommendation Context Builder": {
+      "main": [
+        [
+          {
+            "node": "👤 Fetch User Profile & Preferences",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 Fetch Style History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📈 Fetch Current Fashion Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👤 Fetch User Profile & Preferences": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Recommendation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Fetch Style History": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Recommendation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📈 Fetch Current Fashion Trends": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Recommendation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Recommendation Engine": {
+      "main": [
+        [
+          {
+            "node": "📊 Recommendation Processor & Ranker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Recommendation Processor & Ranker": {
+      "main": [
+        [
+          {
+            "node": "✅ Recommendations Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-09T08:00:00.000Z",
+      "updatedAt": "2025-01-09T08:00:00.000Z",
+      "id": "recommendation-engine",
+      "name": "recommendation-engine"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-09T08:00:00.000Z",
+  "versionId": "1"
+}

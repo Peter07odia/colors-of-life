@@ -1,0 +1,306 @@
+{
+  "meta": {
+    "instanceId": "colorsoflife"
+  },
+  "name": "AI Stylist Master Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "🎯 AI Stylist Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "ai-stylist"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Input Validation & Context Analysis\n// Purpose: Validate input and extract user intent for AI processing\n// Analyzes: user requests, preferences, context, and required actions\n\nconst inputData = $input.first().json;\n\nconst {\n  userId,\n  userMessage,\n  requestType, // 'search', 'tryon', 'avatar', 'recommend', 'analyze'\n  userPreferences,\n  contextData,\n  sessionId\n} = inputData;\n\n// Validate required fields\nif (!userId || !userMessage) {\n  throw new Error('Missing required fields: userId, userMessage');\n}\n\n// Determine request type if not specified\nlet detectedType = requestType;\nif (!detectedType) {\n  const message = userMessage.toLowerCase();\n  if (message.includes('search') || message.includes('find')) {\n    detectedType = 'search';\n  } else if (message.includes('try on') || message.includes('tryon')) {\n    detectedType = 'tryon';\n  } else if (message.includes('avatar') || message.includes('photo')) {\n    detectedType = 'avatar';\n  } else if (message.includes('recommend') || message.includes('suggest')) {\n    detectedType = 'recommend';\n  } else {\n    detectedType = 'analyze';\n  }\n}\n\nreturn {\n  userId,\n  userMessage,\n  requestType: detectedType,\n  userPreferences: userPreferences || {},\n  contextData: contextData || {},\n  sessionId: sessionId || Date.now().toString(),\n  timestamp: new Date().toISOString(),\n  processingStarted: true\n};"
+      },
+      "id": "input-validator",
+      "name": "🔍 Input Validator & Context Analyzer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo-preview",
+        "options": {
+          "systemMessage": "You are an advanced AI Fashion Stylist for Colors of Life app. You have access to multiple tools:\n\n1. FASHION_SEARCH - Search fashion items across multiple platforms\n2. STYLE_ANALYSIS - Analyze user style and provide recommendations  \n3. AVATAR_CREATION - Create custom user avatars\n4. VIRTUAL_TRYON - Generate virtual try-on experiences\n5. IMAGE_ENHANCEMENT - Enhance and process images\n\nAnalyze the user's request and determine which tools to use. You can use multiple tools simultaneously for comprehensive responses.\n\nUser Context:\n- Previous preferences: {{ $json.userPreferences }}\n- Session context: {{ $json.contextData }}\n- Request type: {{ $json.requestType }}\n\nProvide a detailed action plan with tool selection and reasoning.",
+          "temperature": 0.7,
+          "maxTokens": 2000
+        }
+      },
+      "id": "ai-agent-master",
+      "name": "🤖 AI Agent - Master Orchestrator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Thinking Node - Decision Engine\n// Purpose: Process AI agent output and route to appropriate workflows\n// Capabilities: Multi-path routing, parallel processing, workflow coordination\n\nconst agentResponse = $input.first().json;\nconst inputData = $('Input Validator & Context Analyzer').first().json;\n\nconsole.log('AI Agent Response:', JSON.stringify(agentResponse, null, 2));\n\n// Extract action plan from AI agent\nconst actionPlan = agentResponse.text || agentResponse.output || agentResponse.response;\n\n// Determine which workflows to trigger based on AI decision\nconst workflows = {\n  fashionSearch: actionPlan.includes('FASHION_SEARCH'),\n  styleAnalysis: actionPlan.includes('STYLE_ANALYSIS'),\n  avatarCreation: actionPlan.includes('AVATAR_CREATION'),\n  virtualTryon: actionPlan.includes('VIRTUAL_TRYON'),\n  imageEnhancement: actionPlan.includes('IMAGE_ENHANCEMENT')\n};\n\n// Prepare routing data\nconst routingData = {\n  ...inputData,\n  aiDecision: actionPlan,\n  workflows,\n  priority: {\n    urgent: workflows.avatarCreation || workflows.virtualTryon,\n    normal: workflows.fashionSearch || workflows.styleAnalysis,\n    background: workflows.imageEnhancement\n  },\n  executionPlan: {\n    parallel: ['fashionSearch', 'styleAnalysis'],\n    sequential: ['avatarCreation', 'virtualTryon'],\n    async: ['imageEnhancement']\n  }\n};\n\nreturn routingData;"
+      },
+      "id": "thinking-node",
+      "name": "🧠 Thinking Node - Decision Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "node": "n8n-nodes-mcp.mcpClient",
+        "operation": "executetool",
+        "toolName": "brave_search",
+        "parameters": {
+          "query": "={{ $json.userMessage + ' fashion style clothing' }}",
+          "count": 10,
+          "search_type": "web"
+        }
+      },
+      "id": "mcp-fashion-search",
+      "name": "🔍 MCP - Fashion Search Engine",
+      "type": "n8n-nodes-mcp.mcpClient",
+      "typeVersion": 1,
+      "position": [1120, 200],
+      "credentials": {
+        "mcpClientApi": {
+          "id": "mcp-brave-search",
+          "name": "MCP Brave Search"
+        }
+      },
+      "executeOnce": false,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "node": "n8n-nodes-mcp.mcpClient",
+        "operation": "executeCommand",
+        "command": "analyze_style_preferences",
+        "input": {
+          "userMessage": "={{ $json.userMessage }}",
+          "preferences": "={{ JSON.stringify($json.userPreferences) }}",
+          "contextData": "={{ JSON.stringify($json.contextData) }}"
+        }
+      },
+      "id": "mcp-style-analysis",
+      "name": "💎 MCP - Style Analysis Engine",
+      "type": "n8n-nodes-mcp.mcpClient",
+      "typeVersion": 1,
+      "position": [1120, 350],
+      "credentials": {
+        "mcpClientApi": {
+          "id": "mcp-style-analysis",
+          "name": "MCP Style Analysis"
+        }
+      },
+      "executeOnce": false,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "workflowId": "avatar-creation-enhanced",
+        "waitForSubWorkflow": true,
+        "source": "parameter"
+      },
+      "id": "avatar-subworkflow",
+      "name": "👤 Avatar Creation Sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1340, 450],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "workflowId": "virtual-tryon-enhanced",
+        "waitForSubWorkflow": true,
+        "source": "parameter"
+      },
+      "id": "tryon-subworkflow",
+      "name": "👗 Virtual Try-On Sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1340, 550],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Response Aggregator & Formatter\n// Purpose: Combine all workflow results into comprehensive response\n// Features: Error handling, result prioritization, response optimization\n\nconst inputData = $('Thinking Node - Decision Engine').first().json;\n\n// Collect results from all executed workflows\nconst results = {\n  fashionSearch: null,\n  styleAnalysis: null,\n  avatarCreation: null,\n  virtualTryon: null,\n  timestamp: new Date().toISOString()\n};\n\n// Get fashion search results\ntry {\n  const searchResults = $('MCP - Fashion Search Engine').first()?.json;\n  if (searchResults) {\n    results.fashionSearch = {\n      success: true,\n      data: searchResults,\n      count: searchResults.results?.length || 0\n    };\n  }\n} catch (error) {\n  results.fashionSearch = { success: false, error: error.message };\n}\n\n// Get style analysis results\ntry {\n  const styleResults = $('MCP - Style Analysis Engine').first()?.json;\n  if (styleResults) {\n    results.styleAnalysis = {\n      success: true,\n      data: styleResults,\n      recommendations: styleResults.recommendations || []\n    };\n  }\n} catch (error) {\n  results.styleAnalysis = { success: false, error: error.message };\n}\n\n// Get avatar creation results\ntry {\n  const avatarResults = $('Avatar Creation Sub-workflow').first()?.json;\n  if (avatarResults) {\n    results.avatarCreation = {\n      success: avatarResults.success || false,\n      data: avatarResults,\n      avatarUrl: avatarResults.avatarUrl\n    };\n  }\n} catch (error) {\n  results.avatarCreation = { success: false, error: error.message };\n}\n\n// Get virtual try-on results\ntry {\n  const tryonResults = $('Virtual Try-On Sub-workflow').first()?.json;\n  if (tryonResults) {\n    results.virtualTryon = {\n      success: tryonResults.success || false,\n      data: tryonResults,\n      resultUrl: tryonResults.resultVideoUrl || tryonResults.resultImageUrl\n    };\n  }\n} catch (error) {\n  results.virtualTryon = { success: false, error: error.message };\n}\n\n// Format comprehensive response\nconst response = {\n  success: true,\n  message: \"AI Stylist processing completed\",\n  sessionId: inputData.sessionId,\n  userId: inputData.userId,\n  originalRequest: inputData.userMessage,\n  aiDecision: inputData.aiDecision,\n  results,\n  metadata: {\n    processingTime: Date.now() - new Date(inputData.timestamp).getTime(),\n    workflowsExecuted: Object.keys(inputData.workflows).filter(k => inputData.workflows[k]),\n    timestamp: new Date().toISOString()\n  }\n};\n\nreturn response;"
+      },
+      "id": "response-aggregator",
+      "name": "📊 Response Aggregator & Formatter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "webhook-response",
+      "name": "✅ Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "🎯 AI Stylist Webhook": {
+      "main": [
+        [
+          {
+            "node": "🔍 Input Validator & Context Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Input Validator & Context Analyzer": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Agent - Master Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Agent - Master Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "🧠 Thinking Node - Decision Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Thinking Node - Decision Engine": {
+      "main": [
+        [
+          {
+            "node": "🔍 MCP - Fashion Search Engine",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💎 MCP - Style Analysis Engine",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "👤 Avatar Creation Sub-workflow",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "👗 Virtual Try-On Sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 MCP - Fashion Search Engine": {
+      "main": [
+        [
+          {
+            "node": "📊 Response Aggregator & Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💎 MCP - Style Analysis Engine": {
+      "main": [
+        [
+          {
+            "node": "📊 Response Aggregator & Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👤 Avatar Creation Sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "📊 Response Aggregator & Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👗 Virtual Try-On Sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "📊 Response Aggregator & Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Response Aggregator & Formatter": {
+      "main": [
+        [
+          {
+            "node": "✅ Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-09T08:00:00.000Z",
+      "updatedAt": "2025-01-09T08:00:00.000Z",
+      "id": "ai-stylist-master",
+      "name": "ai-stylist-master"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-09T08:00:00.000Z",
+  "versionId": "1"
+} 

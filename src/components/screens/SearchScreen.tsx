@@ -1,25 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   ScrollView, 
   StyleSheet, 
   TextInput,
-  Dimensions 
+  Dimensions,
+  TouchableOpacity,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search as SearchIcon, Filter } from 'lucide-react-native';
+import { Search as SearchIcon, Image as ImageIcon } from 'lucide-react-native';
 
-import { Card, CardContent } from '../ui/Card';
 import { Heading, AppText } from '../ui/Typography';
 import { Button } from '../ui/Button';
+import { ColorPalette } from '../ui/ColorPalette';
+import { ImageSearchModal } from '../ui/ImageSearchModal';
+import { VisualResultCard } from '../ui/VisualResultCard';
 import { colors } from '../../constants/colors';
 
 const { width } = Dimensions.get('window');
 
+interface SearchResult {
+  id: string;
+  title: string;
+  brand?: string;
+  price?: string;
+  originalPrice?: string;
+  image?: string;
+  source?: 'web' | 'database';
+  discount?: number;
+  isVideo?: boolean;
+}
+
 export default function SearchScreen() {
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [searchResults, setSearchResults] = React.useState<any[]>([]);
-  const [isSearching, setIsSearching] = React.useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [currentColorName, setCurrentColorName] = useState<string | null>(null);
+  const [colorFilterEnabled, setColorFilterEnabled] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [searchMode, setSearchMode] = useState<'text' | 'image'>('text');
 
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
@@ -28,29 +49,63 @@ export default function SearchScreen() {
     }
 
     setIsSearching(true);
-    // Simulate API search
+    setSearchMode('text');
+    
+    // Enhanced mock results with visual data
     setTimeout(() => {
-      const mockResults = [
+      const mockResults: SearchResult[] = [
         {
           id: '1',
-          name: 'Vintage Denim Jacket',
+          title: 'Vintage Denim Jacket with Distressed Details',
           brand: 'Style Co.',
           price: '$89',
-          category: 'Outerwear',
+          originalPrice: '$120',
+          image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400&h=600&fit=crop',
+          source: 'database',
+          discount: 26,
         },
         {
           id: '2',
-          name: 'Floral Summer Dress',
+          title: 'Floral Summer Dress',
           brand: 'Trendy Fashion',
           price: '$65',
-          category: 'Dresses',
+          image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400&h=600&fit=crop',
+          source: 'web',
         },
         {
           id: '3',
-          name: 'Classic White Sneakers',
+          title: 'Classic White Leather Sneakers',
           brand: 'Comfort Shoes',
           price: '$120',
-          category: 'Footwear',
+          image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&h=600&fit=crop',
+          source: 'database',
+        },
+        {
+          id: '4',
+          title: 'Casual Button-Down Shirt',
+          brand: 'Urban Style',
+          price: '$45',
+          image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&h=600&fit=crop',
+          source: 'web',
+        },
+        {
+          id: '5',
+          title: 'High-Waisted Black Jeans',
+          brand: 'Denim Co.',
+          price: '$78',
+          originalPrice: '$95',
+          image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&h=600&fit=crop',
+          source: 'database',
+          discount: 18,
+        },
+        {
+          id: '6',
+          title: 'Bohemian Maxi Dress',
+          brand: 'Free Spirit',
+          price: '$92',
+          image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400&h=600&fit=crop',
+          source: 'web',
+          isVideo: true,
         },
       ];
       setSearchResults(mockResults);
@@ -58,10 +113,76 @@ export default function SearchScreen() {
     }, 1000);
   };
 
-  const categories = [
-    'Tops', 'Bottoms', 'Dresses', 'Outerwear', 
-    'Shoes', 'Accessories', 'Bags', 'Jewelry'
+  const handleImageSearch = async (imageUri: string) => {
+    setIsSearching(true);
+    setSearchMode('image');
+    setSearchQuery('Image search results');
+    
+    // Mock image search results
+    setTimeout(() => {
+      const mockResults: SearchResult[] = [
+        {
+          id: 'img1',
+          title: 'Similar Red Dress',
+          brand: 'Fashion Find',
+          price: '$85',
+          image: 'https://images.unsplash.com/photo-1566479179817-3b3e56b2c3e4?w=400&h=600&fit=crop',
+          source: 'web',
+        },
+        {
+          id: 'img2',
+          title: 'Matching Red Top',
+          brand: 'Style Match',
+          price: '$42',
+          image: 'https://images.unsplash.com/photo-1554568218-0f1715e72254?w=400&h=600&fit=crop',
+          source: 'database',
+        },
+      ];
+      setSearchResults(mockResults);
+      setIsSearching(false);
+    }, 1500);
+  };
+
+  const handleColorSelect = (colorName: string | null) => {
+    setSelectedColor(colorName);
+    if (colorName && searchQuery) {
+      handleSearch(`${searchQuery} ${colorName}`);
+    }
+  };
+
+  const handleColorChange = (colorName: string | null) => {
+    setCurrentColorName(colorName);
+  };
+
+  const getSearchPlaceholder = () => {
+    if (searchMode === 'image') return 'Image search results';
+    if (currentColorName) return `Search ${currentColorName} fashion items...`;
+    return 'Search fashion items...';
+  };
+
+  const trendingSearches = [
+    'Summer Dresses', 'Casual Sneakers', 'Business Attire', 'Vintage Jackets',
+    'Boho Style', 'Minimalist Fashion', 'Streetwear', 'Formal Wear'
   ];
+
+  const renderResultItem = ({ item }: { item: SearchResult }) => (
+    <VisualResultCard
+      key={item.id}
+      id={item.id}
+      title={item.title}
+      brand={item.brand}
+      price={item.price}
+      originalPrice={item.originalPrice}
+      image={item.image}
+      source={item.source}
+      discount={item.discount}
+      isVideo={item.isVideo}
+      onPress={() => console.log('Item pressed:', item.id)}
+      onTryOn={() => console.log('Try on:', item.id)}
+      onSave={() => console.log('Save:', item.id)}
+      onShare={() => console.log('Share:', item.id)}
+    />
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,98 +197,74 @@ export default function SearchScreen() {
             />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search fashion items..."
+              placeholder={getSearchPlaceholder()}
               placeholderTextColor={colors.text.secondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               onSubmitEditing={() => handleSearch(searchQuery)}
               returnKeyType="search"
+              editable={searchMode === 'text'}
             />
-            <Button
-              title="Filter"
-              variant="text"
-              size="sm"
-              onPress={() => console.log('Filter pressed')}
-              style={styles.filterButton}
-            />
+            <TouchableOpacity
+              style={styles.imageSearchButton}
+              onPress={() => setShowImageModal(true)}
+              activeOpacity={0.7}
+            >
+              <ImageIcon size={20} color="#7928CA" />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Quick Categories */}
-        <View style={styles.categoriesSection}>
-          <Heading level={4} style={styles.sectionTitle}>
-            Browse Categories
-          </Heading>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoriesScroll}
-          >
-            {categories.map((category) => (
-              <Button
-                key={category}
-                title={category}
-                variant="outline"
-                size="sm"
-                onPress={() => handleSearch(category)}
-                style={styles.categoryButton}
-              />
-            ))}
-          </ScrollView>
-        </View>
+        {/* Color Palette */}
+        <ColorPalette
+          selectedColor={selectedColor}
+          onColorSelect={handleColorSelect}
+          onColorChange={handleColorChange}
+          enabled={colorFilterEnabled}
+          onEnabledChange={setColorFilterEnabled}
+        />
+
 
         {/* Search Results */}
         {searchQuery.length > 0 && (
           <View style={styles.resultsSection}>
-            <Heading level={4} style={styles.sectionTitle}>
-              {isSearching ? 'Searching...' : `Results for "${searchQuery}"`}
-            </Heading>
+            <View style={styles.resultsHeader}>
+              <Heading level={4} style={styles.sectionTitle}>
+                {isSearching ? 'Searching...' : searchMode === 'image' ? 'Visual Search Results' : `Results for "${searchQuery}"`}
+              </Heading>
+              {selectedColor && (
+                <View style={styles.colorFilter}>
+                  <AppText variant="small" color="secondary">
+                    Filtered by: {selectedColor}
+                  </AppText>
+                </View>
+              )}
+            </View>
             
             {isSearching ? (
               <View style={styles.loadingContainer}>
-                <AppText variant="body" color="secondary">
-                  Finding the perfect items for you...
+                <View style={styles.loadingSpinner} />
+                <AppText variant="body" color="secondary" style={styles.loadingText}>
+                  {searchMode === 'image' ? 'Analyzing image...' : 'Finding perfect items...'}
                 </AppText>
               </View>
             ) : searchResults.length > 0 ? (
-              <View style={styles.resultsGrid}>
-                {searchResults.map((item) => (
-                  <Card key={item.id} variant="elevated" style={styles.resultCard}>
-                    {/* Placeholder for product image */}
-                    <View style={styles.productImagePlaceholder}>
-                      <AppText variant="small" color="secondary">
-                        Product Image
-                      </AppText>
-                    </View>
-                    
-                    <CardContent style={styles.productContent}>
-                      <AppText variant="small" color="secondary" style={styles.productBrand}>
-                        {item.brand}
-                      </AppText>
-                      <Heading level={6} style={styles.productName}>
-                        {item.name}
-                      </Heading>
-                      <AppText variant="body" style={styles.productPrice}>
-                        {item.price}
-                      </AppText>
-                      
-                      <View style={styles.productActions}>
-                        <Button
-                          title="Try On"
-                          variant="primary"
-                          size="sm"
-                          onPress={() => console.log('Try on:', item.id)}
-                          style={styles.tryOnButton}
-                        />
-                      </View>
-                    </CardContent>
-                  </Card>
-                ))}
-              </View>
+              <FlatList
+                data={searchResults}
+                renderItem={renderResultItem}
+                keyExtractor={(item) => item.id}
+                numColumns={2}
+                contentContainerStyle={styles.resultsGrid}
+                columnWrapperStyle={styles.resultRow}
+                showsVerticalScrollIndicator={false}
+                initialNumToRender={6}
+                maxToRenderPerBatch={6}
+                windowSize={10}
+              />
             ) : (
               <View style={styles.emptyState}>
                 <AppText variant="body" color="secondary">
-                  No items found. Try a different search term.
+                  No items found. Try a different search term or adjust your filters.
                 </AppText>
               </View>
             )}
@@ -181,7 +278,7 @@ export default function SearchScreen() {
               Trending Searches
             </Heading>
             <View style={styles.trendingGrid}>
-              {['Summer Dresses', 'Casual Sneakers', 'Business Attire', 'Vintage Jackets'].map((trend) => (
+              {trendingSearches.map((trend) => (
                 <Button
                   key={trend}
                   title={trend}
@@ -198,6 +295,13 @@ export default function SearchScreen() {
           </View>
         )}
 
+        {/* Image Search Modal */}
+        <ImageSearchModal
+          visible={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          onImageSelect={handleImageSearch}
+        />
+
         {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -208,7 +312,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.off,
+    backgroundColor: colors.background.main,
   },
   scrollView: {
     flex: 1,
@@ -216,7 +320,8 @@ const styles = StyleSheet.create({
   searchHeader: {
     backgroundColor: colors.background.main,
     padding: 16,
-    paddingTop: 8,
+    paddingTop: 0,
+    marginTop: -10,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -234,66 +339,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text.primary,
   },
-  filterButton: {
+  imageSearchButton: {
     paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  categoriesSection: {
-    backgroundColor: colors.background.main,
-    paddingBottom: 16,
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-  categoriesScroll: {
-    paddingLeft: 16,
-  },
-  categoryButton: {
-    marginRight: 8,
-    minWidth: 80,
+  colorFilter: {
+    backgroundColor: colors.background.off,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   resultsSection: {
     padding: 16,
+    backgroundColor: colors.background.main,
   },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
   },
+  loadingSpinner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.background.off,
+    borderTopColor: '#7928CA',
+    marginBottom: 16,
+  },
+  loadingText: {
+    textAlign: 'center',
+  },
   resultsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    paddingBottom: 20,
+  },
+  resultRow: {
     justifyContent: 'space-between',
-  },
-  resultCard: {
-    width: (width - 44) / 2, // Account for padding and gap
-    marginBottom: 4,
-  },
-  productImagePlaceholder: {
-    height: 140,
-    backgroundColor: colors.background.off,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  productContent: {
-    padding: 12,
-  },
-  productBrand: {
-    marginBottom: 2,
-  },
-  productName: {
-    marginBottom: 4,
-    fontSize: 14,
-  },
-  productPrice: {
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  productActions: {
-    width: '100%',
-  },
-  tryOnButton: {
-    width: '100%',
+    paddingHorizontal: 4,
   },
   emptyState: {
     padding: 40,
@@ -301,6 +392,7 @@ const styles = StyleSheet.create({
   },
   trendingSection: {
     padding: 16,
+    backgroundColor: colors.background.main,
   },
   trendingGrid: {
     gap: 12,

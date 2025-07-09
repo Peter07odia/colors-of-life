@@ -136,7 +136,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSkip }) => {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Image 
-                source={require('../../../assets/favicon.png')} 
+                source={require('../../../assets/icon.png')} 
                 style={styles.logo}
                 resizeMode="contain"
               />

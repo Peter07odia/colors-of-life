@@ -6,7 +6,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       profiles: {
@@ -76,44 +76,146 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
-      user_style_profiles: {
+      user_avatars: {
         Row: {
           id: string
           user_id: string
-          style_personality: Json
-          occasion_preferences: Json
-          color_analysis: Json
-          budget_range: Json
-          shopping_frequency: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
-          favorite_categories: Json
+          avatar_url: string
+          avatar_type: 'generic' | 'custom' | 'ai_generated'
+          enhancement_metadata: Json | null
+          quality_score: number | null
+          is_primary: boolean
+          processing_status: 'processing' | 'completed' | 'failed'
+          original_image_url: string | null
+          background_removed_url: string | null
+          n8n_task_id: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          style_personality?: Json
-          occasion_preferences?: Json
-          color_analysis?: Json
-          budget_range?: Json
-          shopping_frequency?: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
-          favorite_categories?: Json
+          avatar_url: string
+          avatar_type?: 'generic' | 'custom' | 'ai_generated'
+          enhancement_metadata?: Json | null
+          quality_score?: number | null
+          is_primary?: boolean
+          processing_status?: 'processing' | 'completed' | 'failed'
+          original_image_url?: string | null
+          background_removed_url?: string | null
+          n8n_task_id?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          style_personality?: Json
-          occasion_preferences?: Json
-          color_analysis?: Json
-          budget_range?: Json
-          shopping_frequency?: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
-          favorite_categories?: Json
+          avatar_url?: string
+          avatar_type?: 'generic' | 'custom' | 'ai_generated'
+          enhancement_metadata?: Json | null
+          quality_score?: number | null
+          is_primary?: boolean
+          processing_status?: 'processing' | 'completed' | 'failed'
+          original_image_url?: string | null
+          background_removed_url?: string | null
+          n8n_task_id?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "user_avatars_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      virtual_tryon_results: {
+        Row: {
+          id: string
+          user_id: string
+          avatar_id: string | null
+          clothing_item_id: string | null
+          clothing_item_data: Json | null
+          result_video_url: string | null
+          result_image_url: string | null
+          processing_time_seconds: number | null
+          kling_task_id: string | null
+          n8n_execution_id: string | null
+          processing_status: 'pending' | 'processing' | 'completed' | 'failed'
+          error_message: string | null
+          user_rating: number | null
+          is_saved: boolean
+          shared_publicly: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          avatar_id?: string | null
+          clothing_item_id?: string | null
+          clothing_item_data?: Json | null
+          result_video_url?: string | null
+          result_image_url?: string | null
+          processing_time_seconds?: number | null
+          kling_task_id?: string | null
+          n8n_execution_id?: string | null
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
+          error_message?: string | null
+          user_rating?: number | null
+          is_saved?: boolean
+          shared_publicly?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          avatar_id?: string | null
+          clothing_item_id?: string | null
+          clothing_item_data?: Json | null
+          result_video_url?: string | null
+          result_image_url?: string | null
+          processing_time_seconds?: number | null
+          kling_task_id?: string | null
+          n8n_execution_id?: string | null
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
+          error_message?: string | null
+          user_rating?: number | null
+          is_saved?: boolean
+          shared_publicly?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "virtual_tryon_results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "virtual_tryon_results_avatar_id_fkey"
+            columns: ["avatar_id"]
+            isOneToOne: false
+            referencedRelation: "user_avatars"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       brands: {
         Row: {
@@ -171,6 +273,44 @@ export interface Database {
           sort_order?: number
           is_active?: boolean
           created_at?: string
+        }
+      }
+      user_style_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          style_personality: Json
+          occasion_preferences: Json
+          color_analysis: Json
+          budget_range: Json
+          shopping_frequency: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
+          favorite_categories: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          style_personality?: Json
+          occasion_preferences?: Json
+          color_analysis?: Json
+          budget_range?: Json
+          shopping_frequency?: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
+          favorite_categories?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          style_personality?: Json
+          occasion_preferences?: Json
+          color_analysis?: Json
+          budget_range?: Json
+          shopping_frequency?: 'weekly' | 'monthly' | 'seasonally' | 'rarely' | null
+          favorite_categories?: Json
+          created_at?: string
+          updated_at?: string
         }
       }
       fashion_items: {

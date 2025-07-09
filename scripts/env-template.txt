@@ -1,0 +1,22 @@
+# 🔑 API Keys for Colors of Life n8n Workflows
+# Copy this content to a .env file in your project root and add your actual API keys
+
+# n8n Authentication (SECURE)
+N8N_BASIC_AUTH_USER=your_n8n_username_here
+N8N_BASIC_AUTH_PASSWORD=your_n8n_password_here
+
+# Required for Fashion Search (Brave Search MCP Server)
+BRAVE_API_KEY=your_brave_search_api_key_here
+
+# Required for Image Processing (Replicate API)
+REPLICATE_API_TOKEN=your_replicate_api_token_here
+
+# Required for Web Scraping (Firecrawl)
+FIRECRAWL_API_KEY=your_firecrawl_api_key_here
+
+# Required for AI Agent (Choose one or both)
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Optional: For Kling AI (if you want to use it in workflows)
+KLING_API_KEY=your_kling_api_key_here 

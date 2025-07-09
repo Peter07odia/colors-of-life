@@ -204,7 +204,7 @@ export function TabNavigator() {
               size={focused ? 26 : 24}
             />
           ),
-          headerTitle: 'Profile',
+          headerShown: false,
         }}
       />
     </Tab.Navigator>

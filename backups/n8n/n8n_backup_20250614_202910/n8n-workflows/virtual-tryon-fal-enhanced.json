@@ -1,0 +1,481 @@
+{
+  "meta": {
+    "instanceId": "colorsoflife"
+  },
+  "name": "Virtual Try-On - fal.ai Enhanced (Development)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "virtual-tryon-fal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "👗 Virtual Try-On Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "virtual-tryon-fal"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Simple Try-On Input Validation\n// Purpose: Validate inputs for virtual try-on processing\n// Features: Avatar requirement checking, input validation\n\nconst inputData = $input.first().json;\n\nconst {\n  userId,\n  avatarId,\n  avatarUrl,\n  clothingItems,\n  clothingItemData,\n  tryonSettings = {},\n  qualityLevel = 'high', // Always use high quality during development\n  outputFormat = 'both', // 'image', 'video', 'both'\n  autoCreateAvatar = false // Auto-create avatar if missing\n} = inputData;\n\n// Validate required fields\nif (!userId || !clothingItems || clothingItems.length === 0) {\n  throw new Error('Missing required fields: userId, clothingItems');\n}\n\n// For now, handle single clothing item\nconst clothingItem = clothingItems[0];\n\nreturn {\n  userId,\n  avatarId,\n  avatarUrl,\n  clothingItem,\n  clothingItemData,\n  tryonSettings,\n  qualityLevel,\n  outputFormat,\n  autoCreateAvatar,\n  executionId: `tryon_fal_${userId}_${Date.now()}`,\n  timestamp: new Date().toISOString(),\n  processingSteps: {\n    step1: 'avatar_validation',\n    step2: 'fal_tryon_processing',\n    step3: 'video_generation',\n    step4: 'database_save'\n  }\n};"
+      },
+      "id": "input-validator",
+      "name": "🔍 Try-On Input Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.avatarId && $json.avatarUrl }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-avatar-exists",
+      "name": "👤 Check Avatar Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "select",
+        "table": "user_avatars",
+        "filterType": "manual",
+        "matchType": "matchAll",
+        "filters": [
+          {
+            "column": "user_id",
+            "operator": "eq",
+            "value": "={{ $json.userId }}"
+          },
+          {
+            "column": "is_primary",
+            "operator": "eq",
+            "value": true
+          }
+        ]
+      },
+      "id": "fetch-user-avatar",
+      "name": "🔍 Fetch User Avatar",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Avatar Validation & Setup\n// Purpose: Ensure avatar exists for try-on processing\n// Features: Avatar URL extraction, auto-creation logic, fallback handling\n\nconst inputData = $('Try-On Input Validator').first().json;\nlet avatarData = null;\nlet needsAvatarCreation = false;\n\n// Check if avatar was provided directly\nif (inputData.avatarId && inputData.avatarUrl) {\n  avatarData = {\n    id: inputData.avatarId,\n    avatar_url: inputData.avatarUrl\n  };\n} else {\n  // Check if we fetched avatar from database\n  const fetchedAvatar = $('Fetch User Avatar').first()?.json;\n  if (fetchedAvatar && fetchedAvatar.length > 0) {\n    avatarData = fetchedAvatar[0];\n  } else {\n    needsAvatarCreation = true;\n  }\n}\n\nif (needsAvatarCreation && !inputData.autoCreateAvatar) {\n  throw new Error('No avatar found for user. Please create an avatar first or enable auto-creation.');\n}\n\nreturn {\n  ...inputData,\n  avatarData,\n  needsAvatarCreation,\n  step1Complete: true\n};"
+      },
+      "id": "process-avatar-validation",
+      "name": "✅ Process Avatar Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://fal.run/fal-ai/fashn/tryon/v1.5",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Key {{ $credentials.falAiApi.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "person_image_url",
+              "value": "={{ $json.avatarData.avatar_url }}"
+            },
+            {
+              "name": "cloth_image_url",
+              "value": "={{ $json.clothingItem.image || $json.clothingItem.imageUrl }}"
+            },
+            {
+              "name": "num_inference_steps",
+              "value": 30
+            },
+            {
+              "name": "guidance_scale",
+              "value": 0.7
+            },
+            {
+              "name": "seed",
+              "value": -1
+            },
+            {
+              "name": "enable_safety_checker",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fal-virtual-tryon",
+      "name": "👗 fal.ai - Virtual Try-On",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fal-ai-credentials",
+          "name": "fal.ai API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Process fal.ai Try-On Response\n// Purpose: Handle fal.ai try-on response and prepare for video generation\n// Features: Error handling, result validation, quality assessment\n\nconst falResponse = $input.first().json;\nconst inputData = $('Process Avatar Validation').first().json;\n\nconsole.log('fal.ai Try-On Response:', JSON.stringify(falResponse, null, 2));\n\n// Extract image URL from fal.ai response\nlet tryonImageUrl = null;\n\nif (falResponse.image && falResponse.image.url) {\n  tryonImageUrl = falResponse.image.url;\n} else if (falResponse.images && falResponse.images[0] && falResponse.images[0].url) {\n  tryonImageUrl = falResponse.images[0].url;\n} else if (falResponse.url) {\n  tryonImageUrl = falResponse.url;\n} else {\n  throw new Error('No image URL found in fal.ai try-on response: ' + JSON.stringify(falResponse));\n}\n\n// Calculate quality score\nlet qualityScore = 85; // Base score for development\n\nreturn {\n  ...inputData,\n  tryonImageUrl,\n  falTryOnResponse: falResponse,\n  step2Complete: true,\n  processingProgress: 60,\n  qualityScore\n};"
+      },
+      "id": "process-tryon-response",
+      "name": "🔄 Process Try-On Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.outputFormat === 'video' || $json.outputFormat === 'both' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-video-needed",
+      "name": "🎬 Check if Video Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://fal.run/fal-ai/kling-video/v1.6/pro/image-to-video",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Key {{ $credentials.falAiApi.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $json.tryonImageUrl }}"
+            },
+            {
+              "name": "prompt",
+              "value": "Fashion model showing off the virtual try-on outfit, natural pose, professional fashion photography, smooth movement"
+            },
+            {
+              "name": "duration",
+              "value": 5
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            },
+            {
+              "name": "cfg_scale",
+              "value": 0.7
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fal-video-generation",
+      "name": "🎬 fal.ai - Video Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fal-ai-credentials",
+          "name": "fal.ai API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 STICKY NOTE: Finalize Try-On Results\n// Purpose: Process final results and prepare for database save\n// Features: Quality validation, metadata generation, result optimization\n\nconst inputData = $('Process Try-On Response').first().json;\nlet videoUrl = null;\n\n// Check if video generation was performed\nconst videoData = $('fal.ai - Video Generation').first()?.json;\nif (videoData) {\n  // Extract video URL\n  if (videoData.video && videoData.video.url) {\n    videoUrl = videoData.video.url;\n  } else if (videoData.videos && videoData.videos[0] && videoData.videos[0].url) {\n    videoUrl = videoData.videos[0].url;\n  } else if (videoData.url) {\n    videoUrl = videoData.url;\n  }\n}\n\n// Calculate final quality score\nlet finalQualityScore = inputData.qualityScore;\nif (videoUrl) finalQualityScore += 10; // Bonus for video generation\n\n// Prepare final results\nconst finalResults = {\n  imageUrl: inputData.tryonImageUrl,\n  videoUrl: videoUrl,\n  finalImageUrl: inputData.tryonImageUrl,\n  finalVideoUrl: videoUrl\n};\n\nreturn {\n  ...inputData,\n  ...finalResults,\n  finalQualityScore,\n  processingComplete: true,\n  step3Complete: true,\n  processingProgress: 100,\n  metadata: {\n    avatarUsed: inputData.avatarData.id,\n    clothingItem: inputData.clothingItem.id || 'custom',\n    outputFormat: inputData.outputFormat,\n    qualityLevel: inputData.qualityLevel\n  }\n};"
+      },
+      "id": "finalize-tryon",
+      "name": "🎯 Finalize Try-On Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "insert",
+        "table": "virtual_tryon_results",
+        "records": [
+          {
+            "user_id": "={{ $json.userId }}",
+            "avatar_id": "={{ $json.avatarData.id }}",
+            "clothing_item_id": "={{ $json.clothingItem.id || null }}",
+            "clothing_item_data": "={{ JSON.stringify($json.clothingItemData) }}",
+            "result_image_url": "={{ $json.finalImageUrl }}",
+            "result_video_url": "={{ $json.finalVideoUrl }}",
+            "processing_time_seconds": "={{ Math.floor((new Date().getTime() - new Date($json.timestamp).getTime()) / 1000) }}",
+            "n8n_execution_id": "={{ $workflow.executionId }}",
+            "processing_status": "completed",
+            "quality_score": "={{ $json.finalQualityScore }}",
+            "processing_metadata": "={{ JSON.stringify($json.metadata) }}"
+          }
+        ]
+      },
+      "id": "save-tryon-result",
+      "name": "💾 Save Try-On Result",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2440, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": \"Virtual try-on completed successfully with fal.ai\",\n  \"tryonResultId\": $('Save Try-On Result').first().json[0].id,\n  \"results\": {\n    \"imageUrl\": $('Finalize Try-On Results').first().json.finalImageUrl,\n    \"videoUrl\": $('Finalize Try-On Results').first().json.finalVideoUrl,\n    \"qualityScore\": $('Finalize Try-On Results').first().json.finalQualityScore\n  },\n  \"metadata\": {\n    \"processingTime\": Math.floor((new Date().getTime() - new Date($('Finalize Try-On Results').first().json.timestamp).getTime()) / 1000),\n    \"outputFormat\": $('Finalize Try-On Results').first().json.outputFormat,\n    \"avatarUsed\": $('Finalize Try-On Results').first().json.avatarData.id\n  },\n  \"executionId\": $workflow.executionId\n} }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "success-response",
+      "name": "✅ Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2660, 300]
+    }
+  ],
+  "connections": {
+    "👗 Virtual Try-On Webhook": {
+      "main": [
+        [
+          {
+            "node": "🔍 Try-On Input Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Try-On Input Validator": {
+      "main": [
+        [
+          {
+            "node": "👤 Check Avatar Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👤 Check Avatar Exists": {
+      "main": [
+        [
+          {
+            "node": "✅ Process Avatar Validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🔍 Fetch User Avatar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Fetch User Avatar": {
+      "main": [
+        [
+          {
+            "node": "✅ Process Avatar Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Process Avatar Validation": {
+      "main": [
+        [
+          {
+            "node": "👗 fal.ai - Virtual Try-On",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "👗 fal.ai - Virtual Try-On": {
+      "main": [
+        [
+          {
+            "node": "🔄 Process Try-On Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Process Try-On Response": {
+      "main": [
+        [
+          {
+            "node": "🎬 Check if Video Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Check if Video Needed": {
+      "main": [
+        [
+          {
+            "node": "🎬 fal.ai - Video Generation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🎯 Finalize Try-On Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 fal.ai - Video Generation": {
+      "main": [
+        [
+          {
+            "node": "🎯 Finalize Try-On Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Finalize Try-On Results": {
+      "main": [
+        [
+          {
+            "node": "💾 Save Try-On Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Save Try-On Result": {
+      "main": [
+        [
+          {
+            "node": "✅ Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-09T08:00:00.000Z",
+      "updatedAt": "2025-01-09T08:00:00.000Z",
+      "id": "virtual-tryon-fal",
+      "name": "virtual-tryon-fal"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-09T08:00:00.000Z",
+  "versionId": "1"
+} 

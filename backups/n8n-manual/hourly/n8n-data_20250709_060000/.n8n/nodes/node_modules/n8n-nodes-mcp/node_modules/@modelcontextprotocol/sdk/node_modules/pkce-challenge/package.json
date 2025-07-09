@@ -1,0 +1,43 @@
+{
+  "name": "pkce-challenge",
+  "version": "3.0.0",
+  "description": "Generate or verify a Proof Key for Code Exchange (PKCE) challenge pair",
+  "source": "src/index.ts",
+  "main": "dist/main.js",
+  "module": "dist/module.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "watch": "parcel watch",
+    "build": "parcel build --no-source-maps",
+    "test": "tap tests/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crouchcd/pkce-challenge.git"
+  },
+  "keywords": [
+    "PKCE",
+    "oauth2"
+  ],
+  "author": "crouchcd",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/crouchcd/pkce-challenge/issues"
+  },
+  "homepage": "https://github.com/crouchcd/pkce-challenge#readme",
+  "dependencies": {
+    "crypto-js": "^4.1.1"
+  },
+  "devDependencies": {
+    "@parcel/packager-ts": "^2.4.0",
+    "@parcel/transformer-typescript-types": "^2.4.0",
+    "@types/crypto-js": "^4.1.1",
+    "@types/node": "^12.20.47",
+    "parcel": "^2.4.0",
+    "tap": "^16.0.1",
+    "typescript": "^4.6.3"
+  }
+}

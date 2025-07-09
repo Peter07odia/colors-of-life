@@ -16,15 +16,20 @@ export interface AvatarCreationResponse {
   error?: string;
 }
 
+export interface ClothingItem {
+  id: string;
+  image: string;
+  name: string;
+  category: string;
+  categoryType?: 'tops' | 'bottoms' | 'outerwear' | 'dresses' | 'footwear' | 'accessories';
+  priority?: number; // For ordering when multiple items are tried on
+}
+
 export interface VirtualTryOnRequest {
   avatarId: string;
-  clothingItems: Array<{
-    id: string;
-    image: string;
-    name: string;
-    category: string;
-  }>;
+  clothingItems: ClothingItem[];
   clothingItemData?: any;
+  tryOnMode?: 'single' | 'outfit'; // single item or complete outfit
 }
 
 export interface VirtualTryOnResponse {
@@ -40,13 +45,19 @@ export interface VirtualTryOnResponse {
 export interface TryOnResult {
   id: string;
   user_id: string;
-  avatar_id: string;
-  clothing_item_id: string;
-  clothing_item_data: any;
+  avatar_id?: string;
+  clothing_item_id?: string;
+  clothing_item_data?: any;
   result_video_url?: string;
   result_image_url?: string;
+  processing_time_seconds?: number;
+  kling_task_id?: string;
+  n8n_execution_id?: string;
   processing_status: 'pending' | 'processing' | 'completed' | 'failed';
   error_message?: string;
+  user_rating?: number;
+  is_saved?: boolean;
+  shared_publicly?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -64,32 +75,124 @@ export interface UserAvatar {
 class VirtualTryOnService {
   
   /**
-   * Create a user avatar using OpenAI background removal
+   * Create a user avatar - DEPRECATED: Use supabaseEdgeFunctionService.createAvatar instead
+   * This method is kept for backward compatibility but should not be used
    */
   async createAvatar(request: AvatarCreationRequest): Promise<AvatarCreationResponse> {
-    try {
-      const user = await getCurrentUser();
-      if (!user) {
-        throw new Error('User not authenticated');
+    console.warn('⚠️ virtualTryOnService.createAvatar is deprecated. Use supabaseEdgeFunctionService.createAvatar instead');
+    
+    return {
+      success: false,
+      message: 'This method is deprecated. Use supabaseEdgeFunctionService.createAvatar instead',
+      error: 'Method deprecated'
+    };
+  }
+
+  /**
+   * Categorize clothing items by type
+   */
+  private categorizeClothingItems(items: ClothingItem[]): {
+    tops: ClothingItem[];
+    bottoms: ClothingItem[];
+    outerwear: ClothingItem[];
+    dresses: ClothingItem[];
+    footwear: ClothingItem[];
+    accessories: ClothingItem[];
+  } {
+    const categorized = {
+      tops: [] as ClothingItem[],
+      bottoms: [] as ClothingItem[],
+      outerwear: [] as ClothingItem[],
+      dresses: [] as ClothingItem[],
+      footwear: [] as ClothingItem[],
+      accessories: [] as ClothingItem[]
+    };
+
+    items.forEach(item => {
+      const categoryType = item.categoryType || this.inferCategoryType(item.category);
+      if (categorized[categoryType]) {
+        categorized[categoryType].push(item);
       }
+    });
 
-      const { data, error } = await supabase.functions.invoke('avatar-creation', {
-        body: request
-      });
+    return categorized;
+  }
 
-      if (error) {
-        throw new Error(error.message);
-      }
+  /**
+   * Infer category type from category name
+   */
+  private inferCategoryType(category: string): 'tops' | 'bottoms' | 'outerwear' | 'dresses' | 'footwear' | 'accessories' {
+    const categoryLower = category.toLowerCase();
+    
+    if (categoryLower.includes('top') || categoryLower.includes('shirt') || categoryLower.includes('blouse')) {
+      return 'tops';
+    } else if (categoryLower.includes('bottom') || categoryLower.includes('pant') || categoryLower.includes('jean') || 
+               categoryLower.includes('short') || categoryLower.includes('trouser')) {
+      return 'bottoms';
+    } else if (categoryLower.includes('outerwear') || categoryLower.includes('jacket') || categoryLower.includes('coat')) {
+      return 'outerwear';
+    } else if (categoryLower.includes('dress') || categoryLower.includes('gown')) {
+      return 'dresses';
+    } else if (categoryLower.includes('shoe') || categoryLower.includes('footwear') || categoryLower.includes('sneaker')) {
+      return 'footwear';
+    } else {
+      return 'accessories';
+    }
+  }
 
-      return data;
-    } catch (error) {
-      console.error('Avatar creation failed:', error);
+  /**
+   * Validate outfit combination for try-on
+   */
+  private validateOutfitCombination(items: ClothingItem[]): { valid: boolean; message?: string } {
+    const categorized = this.categorizeClothingItems(items);
+    
+    // Check for conflicting combinations
+    if (categorized.dresses.length > 0 && (categorized.tops.length > 0 || categorized.bottoms.length > 0)) {
       return {
-        success: false,
-        message: 'Failed to create avatar',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        valid: false,
+        message: 'Cannot combine dresses with separate tops or bottoms'
       };
     }
+
+    // Check for excessive items in same category
+    if (categorized.tops.length > 2) {
+      return {
+        valid: false,
+        message: 'Too many top items selected (maximum 2: base + outerwear)'
+      };
+    }
+
+    if (categorized.bottoms.length > 1) {
+      return {
+        valid: false,
+        message: 'Multiple bottom items selected (only one allowed)'
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Prepare clothing items for try-on with proper ordering
+   */
+  private prepareClothingItemsForTryOn(items: ClothingItem[]): ClothingItem[] {
+    const categorized = this.categorizeClothingItems(items);
+    const orderedItems: ClothingItem[] = [];
+
+    // Order: bottoms/dresses first, then tops, then outerwear, then accessories, then footwear
+    orderedItems.push(...categorized.dresses);
+    orderedItems.push(...categorized.bottoms);
+    orderedItems.push(...categorized.tops.filter(item => !item.category.toLowerCase().includes('jacket')));
+    orderedItems.push(...categorized.outerwear);
+    orderedItems.push(...categorized.tops.filter(item => item.category.toLowerCase().includes('jacket')));
+    orderedItems.push(...categorized.accessories);
+    orderedItems.push(...categorized.footwear);
+
+    // Assign priority based on order
+    return orderedItems.map((item, index) => ({
+      ...item,
+      priority: index + 1
+    }));
   }
 
   /**
@@ -102,8 +205,43 @@ class VirtualTryOnService {
         throw new Error('User not authenticated');
       }
 
+      // Validate clothing combination if multiple items
+      if (request.clothingItems.length > 1) {
+        const validation = this.validateOutfitCombination(request.clothingItems);
+        if (!validation.valid) {
+          return {
+            success: false,
+            message: validation.message || 'Invalid clothing combination',
+            error: 'INVALID_COMBINATION'
+          };
+        }
+      }
+
+      // Prepare items with proper ordering
+      const preparedItems = this.prepareClothingItemsForTryOn(request.clothingItems);
+      
+      // Enhanced request with category information
+      const enhancedRequest = {
+        ...request,
+        clothingItems: preparedItems,
+        tryOnMode: request.tryOnMode || (preparedItems.length > 1 ? 'outfit' : 'single'),
+        metadata: {
+          hasBottoms: preparedItems.some(item => this.inferCategoryType(item.category) === 'bottoms'),
+          hasTops: preparedItems.some(item => this.inferCategoryType(item.category) === 'tops'),
+          hasOuterwear: preparedItems.some(item => this.inferCategoryType(item.category) === 'outerwear'),
+          totalItems: preparedItems.length
+        }
+      };
+
+      console.log('Starting virtual try-on with enhanced request:', {
+        avatarId: enhancedRequest.avatarId,
+        itemCount: enhancedRequest.clothingItems.length,
+        tryOnMode: enhancedRequest.tryOnMode,
+        metadata: enhancedRequest.metadata
+      });
+
       const { data, error } = await supabase.functions.invoke('virtual-tryon', {
-        body: request
+        body: enhancedRequest
       });
 
       if (error) {
@@ -371,6 +509,66 @@ class VirtualTryOnService {
       console.error('Failed to rate try-on result:', error);
       return false;
     }
+  }
+
+  /**
+   * Suggest outfit combinations from available wardrobe items
+   */
+  async suggestOutfitCombinations(wardrobeItems: ClothingItem[]): Promise<ClothingItem[][]> {
+    try {
+      const categorized = this.categorizeClothingItems(wardrobeItems);
+      const outfitSuggestions: ClothingItem[][] = [];
+
+      // Suggest basic combinations
+      // 1. Top + Bottom combinations
+      categorized.tops.forEach(top => {
+        categorized.bottoms.forEach(bottom => {
+          const combination = [top, bottom];
+          if (this.validateOutfitCombination(combination).valid) {
+            outfitSuggestions.push(combination);
+          }
+        });
+      });
+
+      // 2. Dress as standalone
+      categorized.dresses.forEach(dress => {
+        outfitSuggestions.push([dress]);
+      });
+
+      // 3. Top + Bottom + Outerwear combinations
+      categorized.tops.forEach(top => {
+        categorized.bottoms.forEach(bottom => {
+          categorized.outerwear.forEach(outerwear => {
+            const combination = [top, bottom, outerwear];
+            if (this.validateOutfitCombination(combination).valid) {
+              outfitSuggestions.push(combination);
+            }
+          });
+        });
+      });
+
+      // Limit to top 10 suggestions to avoid overwhelming the user
+      return outfitSuggestions.slice(0, 10);
+    } catch (error) {
+      console.error('Failed to suggest outfit combinations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Helper method to check if an item is suitable for bottoms try-on
+   */
+  isBottomItem(item: ClothingItem): boolean {
+    const categoryType = item.categoryType || this.inferCategoryType(item.category);
+    return categoryType === 'bottoms' || categoryType === 'dresses';
+  }
+
+  /**
+   * Helper method to check if an item is suitable for tops try-on
+   */
+  isTopItem(item: ClothingItem): boolean {
+    const categoryType = item.categoryType || this.inferCategoryType(item.category);
+    return categoryType === 'tops' || categoryType === 'outerwear';
   }
 }
 

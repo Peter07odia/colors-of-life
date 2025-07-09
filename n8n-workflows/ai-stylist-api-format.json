@@ -1,0 +1,239 @@
+{
+  "name": "AI Fashion Stylist (MCP)",
+  "nodes": [
+    {
+      "id": "ai-stylist-webhook",
+      "name": "AI Stylist Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-stylist",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "ai-stylist-webhook",
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "message-processor",
+      "name": "Message Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🎯 AI Stylist Message Processor\n// Processes user messages and extracts fashion context\n\nconsole.log('=== AI STYLIST MESSAGE PROCESSOR START ===');\n\n// Initialize variables\nlet inputData = {};\nlet userMessage = '';\nlet userId = 'anonymous';\nlet sessionId = null;\n\ntry {\n  const inputs = $input.all();\n  if (inputs.length > 0 && inputs[0] && inputs[0].json) {\n    inputData = inputs[0].json;\n    userMessage = inputData.message || inputData.query || inputData.text || '';\n    userId = inputData.userId || inputData.user_id || 'anonymous';\n    sessionId = inputData.sessionId || `session_${Date.now()}`;\n  }\n} catch (error) {\n  console.log('❌ Error processing input:', error.message);\n}\n\n// Analyze user message for fashion intent\nfunction analyzeMessage(message) {\n  const text = String(message).toLowerCase().trim();\n  \n  // Intent classification\n  let intent = 'general_chat';\n  const intentPatterns = {\n    'style_advice': ['style', 'look', 'outfit', 'fashion', 'dress', 'wear'],\n    'product_search': ['find', 'search', 'show me', 'looking for', 'need'],\n    'color_advice': ['color', 'colour', 'shade', 'palette'],\n    'occasion_styling': ['wedding', 'party', 'work', 'date', 'casual', 'formal']\n  };\n  \n  for (const [category, patterns] of Object.entries(intentPatterns)) {\n    if (patterns.some(pattern => text.includes(pattern))) {\n      intent = category;\n      break;\n    }\n  }\n  \n  // Extract entities\n  const colors = ['black', 'white', 'red', 'blue', 'green', 'yellow', 'purple', 'pink'];\n  const garments = ['dress', 'shirt', 'pants', 'jeans', 'skirt', 'top', 'jacket', 'shoes'];\n  \n  const entities = {\n    colors: colors.filter(color => text.includes(color)),\n    garments: garments.filter(garment => text.includes(garment))\n  };\n  \n  return {\n    original: message.trim(),\n    intent: intent,\n    entities: entities,\n    urgency: text.includes('urgent') || text.includes('need now') ? 'high' : 'low'\n  };\n}\n\n// Build AI prompt\nfunction buildStylistPrompt(analysis) {\n  let prompt = `You are Ava, an expert AI fashion stylist for the Colors of Life app. You help users discover their personal style.\\n\\n`;\n  \n  prompt += `Your personality:\\n`;\n  prompt += `- Warm, encouraging, and enthusiastic about fashion\\n`;\n  prompt += `- Knowledgeable about trends and timeless style\\n`;\n  prompt += `- Body-positive and inclusive\\n`;\n  prompt += `- Conversational and fun\\n\\n`;\n  \n  prompt += `Current message analysis:\\n`;\n  prompt += `Intent: ${analysis.intent}\\n`;\n  prompt += `Urgency: ${analysis.urgency}\\n`;\n  \n  if (Object.values(analysis.entities).some(arr => arr.length > 0)) {\n    prompt += `Detected fashion elements:\\n`;\n    Object.entries(analysis.entities).forEach(([key, values]) => {\n      if (values.length > 0) {\n        prompt += `- ${key}: ${values.join(', ')}\\n`;\n      }\n    });\n  }\n  \n  prompt += `\\nInstructions:\\n`;\n  prompt += `1. Respond with personalized fashion advice\\n`;\n  prompt += `2. Be specific and actionable\\n`;\n  prompt += `3. Include styling tips when relevant\\n`;\n  prompt += `4. Ask follow-up questions to understand their needs\\n`;\n  prompt += `5. Keep responses conversational and encouraging\\n`;\n  prompt += `6. Limit to 2-3 paragraphs for mobile readability\\n\\n`;\n  \n  prompt += `User's message: \"${analysis.original}\"\\n\\n`;\n  prompt += `Your response as Ava:`;\n  \n  return prompt;\n}\n\nconst messageAnalysis = analyzeMessage(userMessage);\nconst aiPrompt = buildStylistPrompt(messageAnalysis);\n\nconst result = {\n  userId: userId,\n  sessionId: sessionId,\n  message: {\n    original: userMessage,\n    analysis: messageAnalysis,\n    timestamp: new Date().toISOString()\n  },\n  aiPrompt: aiPrompt,\n  conversationData: {\n    intent: messageAnalysis.intent,\n    entities: messageAnalysis.entities,\n    urgency: messageAnalysis.urgency\n  },\n  metadata: {\n    messageId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,\n    timestamp: new Date().toISOString()\n  }\n};\n\nconsole.log('🎯 Message processed:', messageAnalysis.intent);\nreturn result;"
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "get-user-profile",
+      "name": "Get User Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  up.style_preferences,\n  up.color_preferences,\n  up.body_type,\n  up.budget_range,\n  p.full_name\nFROM user_profiles up\nLEFT JOIN profiles p ON up.user_id = p.id\nWHERE up.user_id = '{{ $json.userId }}'\nLIMIT 1;"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "ai-chat",
+      "name": "AI Chat",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [680, 400],
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "modelId": "gpt-3.5-turbo",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "={{ $json.aiPrompt }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 400
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "get-relevant-items",
+      "name": "Get Relevant Items",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 200],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  fi.id,\n  fi.name,\n  fi.price,\n  fi.images,\n  fi.colors,\n  b.name as brand_name\nFROM fashion_items fi\nLEFT JOIN brands b ON fi.brand_id = b.id\nWHERE fi.is_active = true\n{% if $('message-processor').item.json.conversationData.entities.colors.length > 0 %}\n  AND fi.colors && ARRAY[{% for color in $('message-processor').item.json.conversationData.entities.colors %}'{{ color }}'{% if not loop.last %},{% endif %}{% endfor %}]\n{% endif %}\nORDER BY fi.popularity_score DESC\nLIMIT 6;"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "response-builder",
+      "name": "Response Builder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🎨 AI Stylist Response Builder\n// Combines AI response with relevant items\n\nconst allInputs = $input.all();\nlet messageData = null;\nlet userProfile = null;\nlet aiResponse = null;\nlet relevantItems = [];\n\n// Process inputs\nallInputs.forEach((input) => {\n  const data = input.json;\n  \n  if (data && data.conversationData && data.aiPrompt) {\n    messageData = data;\n  } else if (data && data.style_preferences) {\n    userProfile = data;\n  } else if (data && data.message && data.message.content) {\n    aiResponse = data.message.content;\n  } else if (Array.isArray(data)) {\n    relevantItems = data.map((item, idx) => ({\n      id: item.id || `item_${idx}`,\n      name: item.name || 'Fashion Item',\n      price: item.price ? `$${item.price}` : null,\n      brand: item.brand_name || 'Brand',\n      colors: item.colors || [],\n      source: 'database'\n    }));\n  }\n});\n\n// Fallbacks\nif (!messageData) {\n  messageData = {\n    userId: 'anonymous',\n    sessionId: `fallback_${Date.now()}`,\n    message: { original: 'fashion advice' },\n    conversationData: { intent: 'style_advice', entities: {} }\n  };\n}\n\nif (!aiResponse) {\n  aiResponse = \"Hi! I'm Ava, your personal fashion stylist. I'd love to help you discover your style! What are you looking for today?\";\n}\n\n// Generate follow-up suggestions\nconst followUps = [];\nswitch (messageData.conversationData.intent) {\n  case 'style_advice':\n    followUps.push(\"Would you like me to find specific items for this look?\");\n    followUps.push(\"Tell me about the occasion you're dressing for?\");\n    break;\n  case 'product_search':\n    followUps.push(\"Should I show you more options in different colors?\");\n    break;\n  default:\n    followUps.push(\"Is there anything specific you'd like to explore?\");\n}\n\nreturn {\n  success: true,\n  sessionId: messageData.sessionId,\n  conversation: {\n    userMessage: messageData.message.original,\n    avaResponse: aiResponse,\n    intent: messageData.conversationData.intent,\n    entities: messageData.conversationData.entities,\n    timestamp: new Date().toISOString()\n  },\n  styling: {\n    recommendations: relevantItems,\n    followUpSuggestions: followUps.slice(0, 2),\n    userProfile: userProfile ? {\n      style_preferences: userProfile.style_preferences || [],\n      color_preferences: userProfile.color_preferences || [],\n      body_type: userProfile.body_type\n    } : null\n  },\n  metadata: {\n    responseId: `response_${Date.now()}`,\n    userId: messageData.userId,\n    timestamp: new Date().toISOString(),\n    itemsRecommended: relevantItems.length,\n    hasUserProfile: !!userProfile\n  }\n};"
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1340, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    }
+  ],
+  "connections": {
+    "AI Stylist Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message Processor": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Chat",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Relevant Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Response Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Chat": {
+      "main": [
+        [
+          {
+            "node": "Response Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Relevant Items": {
+      "main": [
+        [
+          {
+            "node": "Response Builder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Builder": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

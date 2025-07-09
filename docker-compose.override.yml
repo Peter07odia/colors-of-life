@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Enhanced n8n configuration with better data persistence
+  n8n:
+    volumes:
+      # Primary data volume (bind mount to existing directory)
+      - ./n8n-data:/home/node/.n8n
+      # Workflow files (read-only mount for import)
+      - ./n8n-workflows:/home/node/.n8n/workflows-import:ro
+      # Backup directory (for easy access)
+      - ./backups:/home/node/backups
+      # Logs directory
+      - ./logs:/home/node/logs
+    environment:
+      # Enhanced backup and persistence settings
+      - N8N_USER_FOLDER=/home/node/.n8n
+      - N8N_LOG_FILE=/home/node/logs/n8n.log
+      - N8N_LOG_LEVEL=info
+      # Enhanced security
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
+      # Enable task runners (remove deprecation warning)
+      - N8N_RUNNERS_ENABLED=true
+      # Backup webhook URL for external backup triggers
+      - N8N_WEBHOOK_URL=http://localhost:5678/webhook
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5678/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backup service (optional - for automated backups)
+  n8n-backup:
+    image: alpine:latest
+    container_name: colorsoflife-n8n-backup
+    volumes:
+      - n8n-data:/backup/n8n-data:ro
+      - ./backups:/backup/output
+      - ./scripts:/backup/scripts:ro
+    environment:
+      - BACKUP_SCHEDULE=0 2 * * *  # Daily at 2 AM
+    command: >
+      sh -c "
+        apk add --no-cache dcron sqlite &&
+        echo '0 2 * * * cd /backup && /backup/scripts/n8n-backup-restore.sh backup' | crontab - &&
+        crond -f
+      "
+    restart: unless-stopped
+    depends_on:
+      - n8n
+
+volumes:
+  # Ensure n8n data volume is properly named and persistent
+  n8n-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/n8n-data 

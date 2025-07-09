@@ -1,0 +1,279 @@
+# Colors of Life - Cursor Development Rules
+# ==========================================
+# AI Assistant Guidelines for React Native Fashion App Development
+
+## 🎯 PROJECT CONTEXT
+
+You are working on **Colors of Life**, a sophisticated React Native mobile app for AI-powered virtual fashion try-on. The app uses Expo, Supabase, and n8n workflows for a complete fashion discovery and virtual styling experience.
+
+### Key Technologies:
+- **Frontend**: React Native + Expo, TypeScript, Zustand
+- **Backend**: Supabase (Auth, Database, Storage, Edge Functions)  
+- **AI/ML**: fal.ai unified processing (virtual try-on, avatar creation, video generation), n8n workflows
+- **State**: Zustand + AsyncStorage (NO localStorage)
+- **Navigation**: React Navigation v6 (Tab + Stack)
+- **Monetization**: Freemium model with credit-based usage tracking
+
+## 🚨 CRITICAL RULES - NEVER VIOLATE
+
+### 1. MOBILE-ONLY DEVELOPMENT
+- ❌ NEVER use web APIs: `localStorage`, `sessionStorage`, `window`, `document`
+- ✅ ALWAYS use `AsyncStorage` from `@react-native-async-storage/async-storage`
+- ✅ ALWAYS use React Native components, never HTML elements
+- ✅ ALWAYS test mobile-specific scenarios (camera, permissions, etc.)
+
+### 2. TYPESCRIPT STRICTNESS
+- ✅ ALWAYS provide full TypeScript types
+- ✅ ALWAYS import and use existing types from `src/types/`
+- ✅ NEVER use `any` type - use proper typing or `unknown`
+- ✅ ALWAYS validate props and function parameters
+
+### 3. STATE MANAGEMENT CONSISTENCY
+- ✅ ALWAYS use Zustand stores for global state (`src/lib/store/`)
+- ✅ ALWAYS use AsyncStorage for persistence, never other storage
+- ✅ ALWAYS check existing stores before creating new ones
+- ✅ ALWAYS follow the established store patterns (userStore, dataStore, uiStore)
+
+### 4. FILE ORGANIZATION DISCIPLINE
+- ✅ ALWAYS place components in correct directories (`src/components/[feature]/`)
+- ✅ ALWAYS use established naming conventions (PascalCase for components)
+- ✅ ALWAYS check if similar components exist before creating new ones
+- ✅ ALWAYS follow the feature-based directory structure
+
+## 📱 COMPONENT DEVELOPMENT RULES
+
+### Component Creation Guidelines:
+1. **Check First**: Always search existing components before creating new ones
+2. **Single Responsibility**: Each component should have one clear purpose
+3. **Reusability**: Prefer extending existing UI components from `src/components/ui/`
+4. **Props Typing**: Always define TypeScript interfaces for props
+5. **Mobile Optimization**: Always consider mobile interactions and performance
+
+### UI Component Usage:
+```typescript
+// ✅ CORRECT - Use existing UI components
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+
+// ❌ WRONG - Don't create duplicate UI components
+// import { CustomButton } from './CustomButton';
+```
+
+### AsyncStorage Usage:
+```typescript
+// ✅ CORRECT - Async operations with error handling
+try {
+  await AsyncStorage.setItem('key', JSON.stringify(data));
+} catch (error) {
+  console.error('Storage error:', error);
+}
+
+// ❌ WRONG - Never use localStorage
+// localStorage.setItem('key', data);
+```
+
+## 🗄️ DATABASE & SUPABASE RULES
+
+### Database Operations:
+- ✅ ALWAYS use the established Supabase client from `src/lib/supabase.ts`
+- ✅ ALWAYS handle network errors gracefully (especially iOS simulator issues)
+- ✅ ALWAYS check existing database schema before proposing changes
+- ✅ ALWAYS use Row Level Security (RLS) policies
+
+### Database Tables - REFERENCE ONLY:
+```sql
+-- Core Tables (DO NOT MODIFY without discussion):
+profiles                    -- User profiles and preferences
+user_avatars               -- AI-generated avatars for try-on
+virtual_tryon_results      -- Try-on session results
+fashion_items              -- Fashion catalog
+user_favorites             -- Saved items
+n8n_workflow_executions   -- AI workflow tracking
+```
+
+## 🎨 STYLING & UI RULES
+
+### Design System:
+- ✅ ALWAYS use colors from `src/constants/colors.ts`
+- ✅ ALWAYS follow established spacing and typography patterns
+- ✅ ALWAYS use Lucide React Native icons
+- ✅ ALWAYS handle safe areas properly with `react-native-safe-area-context`
+
+### Color Palette:
+```typescript
+// ✅ CORRECT - Use established colors
+const colors = {
+  primary: '#7928CA',        // Purple
+  primaryLight: '#F5F0FF',   
+  secondary: '#FF0080',      // Pink
+  textPrimary: '#1C1C1E',
+  textSecondary: '#6B7280',
+  background: '#FFFFFF',
+  backgroundAlt: '#F8F9FA'
+};
+```
+
+## 🔄 WORKFLOW INTEGRATION RULES
+
+### n8n Workflow Usage:
+- ✅ ALWAYS check existing workflows in `n8n-workflows/` directory
+- ✅ ALWAYS use established webhook endpoints
+- ✅ NEVER modify workflow JSON files without understanding full impact
+- ✅ ALWAYS handle workflow errors and timeout scenarios
+
+### Available Models & Workflows:
+1. **fal.ai Models**:
+   - `fal-ai/birefnet` - Background removal for avatar creation
+   - `fal-ai/fashn/tryon/v1.5` - Fashion virtual try-on
+   - `fal-ai/kling-video/v1.6/pro/image-to-video` - Try-on videos
+   - `fal-ai/clarity-upscaler` - Image quality enhancement
+   - `fal-ai/flux-pro/kontext` - Advanced image generation
+
+2. **n8n Workflows**:
+   - `fal-avatar-creation-workflow.json` - Complete avatar pipeline
+   - `fal-virtual-tryon-workflow.json` - Try-on with video generation
+   - `smart-fashion-search-workflow.json` - Geographic fashion search
+   - `ai-stylist-workflow.json` - Personalized recommendations
+
+## 🧪 TESTING & DEBUGGING RULES
+
+### Development Testing:
+- ✅ ALWAYS test on both iOS and Android (or at least mention limitations)
+- ✅ ALWAYS test AsyncStorage persistence
+- ✅ ALWAYS handle network failures gracefully
+- ✅ ALWAYS test with iOS simulator (known Supabase network issues)
+
+### Error Handling:
+```typescript
+// ✅ CORRECT - Comprehensive error handling
+try {
+  const result = await supabase.from('table').select();
+  if (result.error) throw result.error;
+  return result.data;
+} catch (error) {
+  console.error('Database error:', error);
+  // Handle gracefully - show user-friendly message
+  return null;
+}
+```
+
+## 📋 FEATURE DEVELOPMENT PROCESS
+
+### Before Adding New Features:
+1. **Review Current Status**: Check `PROJECT_DOCUMENTATION.md` for current implementation
+2. **Check Existing Code**: Search for similar implementations
+3. **Plan Database Changes**: Review schema before proposing new tables
+4. **Consider Mobile UX**: Think about touch interactions, loading states
+5. **Plan Error Handling**: Consider network failures, permission denials
+
+### Implementation Order:
+1. **Types First**: Define TypeScript interfaces
+2. **Database Schema**: Plan any new tables/columns
+3. **Store Integration**: Use existing Zustand stores
+4. **Component Creation**: Build UI components
+5. **Testing**: Verify on mobile platforms
+
+## 🚫 COMMON MISTAKES TO AVOID
+
+### Never Do These:
+- ❌ Don't use web-specific APIs or components
+- ❌ Don't create duplicate components without checking existing ones
+- ❌ Don't modify database schema without understanding relationships
+- ❌ Don't assume features work without mobile testing
+- ❌ Don't create new stores without checking existing ones
+- ❌ Don't ignore TypeScript errors or use `any` type
+- ❌ Don't hardcode values that should come from constants
+
+### Always Do These:
+- ✅ Ask for clarification if requirements are unclear
+- ✅ Check existing implementations before creating new ones
+- ✅ Consider mobile performance and UX in all decisions
+- ✅ Handle loading states and errors gracefully
+- ✅ Follow established patterns and conventions
+- ✅ Test with realistic data and scenarios
+
+## 🔍 RESEARCH & INVESTIGATION RULES
+
+### Before Implementation:
+1. **Search Codebase**: Use grep/search to find existing implementations
+2. **Check Documentation**: Review `PROJECT_DOCUMENTATION.md` and `README.md`
+3. **Understand Data Flow**: Trace how data moves through the app
+4. **Review Patterns**: Look at similar components for consistency
+
+### When Stuck:
+1. **Ask Specific Questions**: Don't guess - ask for clarification
+2. **Propose Solutions**: Suggest approaches and ask for feedback
+3. **Break Down Tasks**: Divide complex features into smaller steps
+4. **Reference Documentation**: Point to specific files and lines
+
+## 📚 QUICK REFERENCE
+
+### Key Directories:
+- `src/components/` - All React components (organized by feature)
+- `src/lib/store/` - Zustand state management
+- `src/navigation/` - App navigation setup
+- `src/types/` - TypeScript type definitions
+- `src/constants/` - App constants (colors, etc.)
+- `n8n-workflows/` - AI/ML workflow definitions
+
+### Key Files:
+- `PROJECT_DOCUMENTATION.md` - Complete project overview
+- `src/lib/supabase.ts` - Database client configuration
+- `src/navigation/TabNavigator.tsx` - Main app navigation
+- `database-schema.sql` - Complete database structure
+- `App.tsx` - Main app entry point
+
+### Important Commands:
+```bash
+npm start              # Start development server
+npm run ios           # Run on iOS simulator  
+npm run android       # Run on Android emulator
+npm test              # Run test suite
+```
+
+## 🎯 SUCCESS CRITERIA
+
+You are successful when:
+- ✅ Code works reliably on mobile devices
+- ✅ TypeScript compilation is clean with no errors
+- ✅ AsyncStorage is used correctly for all persistence
+- ✅ Components follow established patterns
+- ✅ Error handling is comprehensive and user-friendly
+- ✅ Performance is optimized for mobile
+- ✅ Integration with existing systems is seamless
+
+## 💰 FREEMIUM TIER CONSIDERATIONS
+
+### Business Model Rules:
+- ✅ ALWAYS implement usage tracking for AI processing
+- ✅ ALWAYS consider free vs premium tier limitations
+- ✅ ALWAYS handle graceful degradation for free users
+- ✅ NEVER block core functionality for free users
+- ✅ ALWAYS provide clear upgrade paths and value propositions
+
+### Target Markets:
+- **Primary**: US, UK, Canada, Europe
+- **Focus**: Individual experience over social features
+- **Approach**: Geographic-optimized content and processing
+
+### Processing Priorities:
+```typescript
+// ✅ CORRECT - Tier-aware processing
+const processImage = async (image: string, tier: 'free' | 'premium') => {
+  const quality = tier === 'premium' ? 'high' : 'standard';
+  const timeout = tier === 'premium' ? 60000 : 30000;
+  // Implementation with appropriate limits
+};
+```
+
+## 📞 CLARIFICATION PROCESS
+
+When in doubt:
+1. **Reference Documentation**: Check `PROJECT_DOCUMENTATION.md` first
+2. **Search Codebase**: Look for similar implementations
+3. **Ask Specific Questions**: "Should I modify X table or create Y component?"
+4. **Propose Approach**: "I think we should do X because Y, what do you think?"
+5. **Break Down Complexity**: "This feature needs A, B, and C - let's start with A"
+6. **Consider Business Impact**: "How does this affect freemium vs premium users?"
+
+Remember: It's better to ask for clarification than to implement something that doesn't fit the project architecture, business model, or requirements. 

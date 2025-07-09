@@ -1,0 +1,8 @@
+[2025-07-08T22:18:46.308Z] [n8n-mcp] [INFO] Node.js version: v22.14.0
+[2025-07-08T22:18:46.309Z] [n8n-mcp] [INFO] Platform: darwin arm64
+[2025-07-08T22:18:46.309Z] [n8n-mcp] [INFO] Attempting to use better-sqlite3...
+[2025-07-08T22:18:46.326Z] [n8n-mcp] [INFO] Initializing n8n Documentation MCP server
+[2025-07-08T22:18:46.328Z] [n8n-mcp] [INFO] MCP server initialized with 39 tools (n8n API: configured)
+[2025-07-08T22:18:46.329Z] [n8n-mcp] [INFO] Successfully initialized better-sqlite3 adapter
+[2025-07-08T22:18:46.329Z] [n8n-mcp] [INFO] Initialized database from: /Users/ifyodia/.npm-global/lib/node_modules/n8n-mcp/data/nodes.db
+[2025-07-08T22:18:46.330Z] [n8n-mcp] [INFO] n8n Documentation MCP Server running on stdio transport

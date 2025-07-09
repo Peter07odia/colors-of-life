@@ -1,0 +1,518 @@
+{
+  "meta": {
+    "instanceId": "local"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "virtual-tryon",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook - Virtual Try-On",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "virtual-tryon"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate input data\nconst inputData = $input.first().json;\n\nconst {\n  userId,\n  avatarId,\n  avatarUrl,\n  clothingItems,\n  clothingItemData,\n  tryonResultId,\n  executionId,\n  supabaseUrl,\n  supabaseServiceKey\n} = inputData;\n\n// Validate required fields\nif (!userId || !avatarId || !avatarUrl || !clothingItems || clothingItems.length === 0) {\n  throw new Error('Missing required fields: userId, avatarId, avatarUrl, clothingItems');\n}\n\n// For now, we'll handle single clothing item\nconst clothingItem = clothingItems[0];\n\nreturn {\n  userId,\n  avatarId,\n  avatarUrl,\n  clothingItem,\n  clothingItemData,\n  tryonResultId,\n  executionId,\n  supabaseUrl,\n  supabaseServiceKey,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "2",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.kling.ai/v1/video/generation",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "kling-v1"
+            },
+            {
+              "name": "mode",
+              "value": "standard"
+            },
+            {
+              "name": "prompt",
+              "value": "Virtual fashion try-on: Person wearing the specified clothing item, natural pose, professional lighting"
+            },
+            {
+              "name": "image",
+              "value": "={{ $json.avatarUrl }}"
+            },
+            {
+              "name": "garment_image",
+              "value": "={{ $json.clothingItem.image || $json.clothingItem.imageUrl }}"
+            },
+            {
+              "name": "cfg_scale",
+              "value": "0.5"
+            },
+            {
+              "name": "duration",
+              "value": "5"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "9:16"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Kling AI - Start Try-On",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kling-ai-credentials",
+          "name": "Kling AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Kling AI response and extract task ID\nconst klingResponse = $input.first().json;\nconst inputData = $('Validate Input').first().json;\n\nconsole.log('Kling AI Response:', JSON.stringify(klingResponse, null, 2));\n\n// Extract task ID from response\nconst taskId = klingResponse.data?.task_id || klingResponse.task_id;\n\nif (!taskId) {\n  throw new Error('No task ID received from Kling AI: ' + JSON.stringify(klingResponse));\n}\n\nreturn {\n  ...inputData,\n  klingTaskId: taskId,\n  klingResponse: klingResponse\n};"
+      },
+      "id": "4",
+      "name": "Extract Task ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "table": "virtual_tryon_results",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.tryonResultId }}"
+          }
+        ],
+        "records": [
+          {
+            "kling_task_id": "={{ $json.klingTaskId }}",
+            "processing_status": "processing"
+          }
+        ]
+      },
+      "id": "5",
+      "name": "Update Try-On Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Poll Kling AI for completion\nconst inputData = $input.first().json;\nconst taskId = inputData.klingTaskId;\n\nlet isComplete = false;\nlet result = null;\nlet attempts = 0;\nconst maxAttempts = 30; // 5 minutes max (10 seconds * 30)\n\nwhile (!isComplete && attempts < maxAttempts) {\n  attempts++;\n  \n  try {\n    const statusResponse = await $http.request({\n      method: 'GET',\n      url: `https://api.kling.ai/v1/video/generation/${taskId}`,\n      headers: {\n        'Authorization': 'Bearer ' + $credentials.klingAiApi.token\n      }\n    });\n    \n    const status = statusResponse.data;\n    console.log(`Attempt ${attempts}: Status - ${status.task_status}`);\n    \n    if (status.task_status === 'succeed') {\n      isComplete = true;\n      result = status.task_result;\n    } else if (status.task_status === 'failed') {\n      throw new Error('Kling AI processing failed: ' + status.error_message);\n    } else {\n      // Still processing, wait 10 seconds\n      await new Promise(resolve => setTimeout(resolve, 10000));\n    }\n  } catch (error) {\n    console.error(`Polling attempt ${attempts} failed:`, error.message);\n    if (attempts >= maxAttempts) {\n      throw error;\n    }\n    await new Promise(resolve => setTimeout(resolve, 10000));\n  }\n}\n\nif (!isComplete) {\n  throw new Error('Kling AI processing timeout after ' + maxAttempts + ' attempts');\n}\n\nreturn {\n  ...inputData,\n  klingResult: result,\n  processingAttempts: attempts\n};"
+      },
+      "id": "6",
+      "name": "Poll for Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process completed result from Kling AI\nconst inputData = $input.first().json;\nconst result = inputData.klingResult;\n\nconsole.log('Kling AI Result:', JSON.stringify(result, null, 2));\n\n// Extract video and image URLs\nconst resultVideoUrl = result.videos?.[0]?.url || result.video_url;\nconst resultImageUrl = result.images?.[0]?.url || result.image_url;\n\nif (!resultVideoUrl && !resultImageUrl) {\n  throw new Error('No result media URLs found in Kling AI response');\n}\n\nreturn {\n  ...inputData,\n  resultVideoUrl,\n  resultImageUrl,\n  processingTimeSeconds: result.processing_time || inputData.processingAttempts * 10\n};"
+      },
+      "id": "7",
+      "name": "Process Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "table": "virtual_tryon_results",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.tryonResultId }}"
+          }
+        ],
+        "records": [
+          {
+            "result_video_url": "={{ $json.resultVideoUrl }}",
+            "result_image_url": "={{ $json.resultImageUrl }}",
+            "processing_time_seconds": "={{ $json.processingTimeSeconds }}",
+            "processing_status": "completed",
+            "updated_at": "={{ new Date().toISOString() }}"
+          }
+        ]
+      },
+      "id": "8",
+      "name": "Save Result to DB",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "table": "n8n_workflow_executions",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.executionId }}"
+          }
+        ],
+        "records": [
+          {
+            "execution_status": "success",
+            "result_data": {
+              "video_url": "={{ $json.resultVideoUrl }}",
+              "image_url": "={{ $json.resultImageUrl }}",
+              "processing_time": "={{ $json.processingTimeSeconds }}"
+            },
+            "completed_at": "={{ new Date().toISOString() }}"
+          }
+        ]
+      },
+      "id": "9",
+      "name": "Update Execution Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Virtual try-on completed successfully\", \"klingTaskId\": $json.klingTaskId, \"resultVideoUrl\": $json.resultVideoUrl, \"resultImageUrl\": $json.resultImageUrl, \"executionId\": $workflow.executionId } }}"
+      },
+      "id": "10",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle errors and update status\nconst error = $input.first().error;\nconst inputData = $('Validate Input').first()?.json || {};\n\nconsole.error('Virtual try-on failed:', error);\n\nreturn {\n  error: error.message || 'Unknown error',\n  executionId: inputData.executionId,\n  tryonResultId: inputData.tryonResultId,\n  userId: inputData.userId\n};"
+      },
+      "id": "11",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "table": "virtual_tryon_results",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.tryonResultId }}"
+          }
+        ],
+        "records": [
+          {
+            "processing_status": "failed",
+            "error_message": "={{ $json.error }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          }
+        ]
+      },
+      "id": "12",
+      "name": "Update Error Status - Try-On",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        500
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "update",
+        "table": "n8n_workflow_executions",
+        "filterType": "manual",
+        "matchingColumns": [
+          {
+            "column": "id",
+            "value": "={{ $json.executionId }}"
+          }
+        ],
+        "records": [
+          {
+            "execution_status": "error",
+            "error_message": "={{ $json.error }}",
+            "completed_at": "={{ new Date().toISOString() }}"
+          }
+        ]
+      },
+      "id": "13",
+      "name": "Update Error Status - Execution",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        500
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": false, \"error\": $json.error, \"executionId\": $workflow.executionId } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "14",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Virtual Try-On": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Kling AI - Start Try-On",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kling AI - Start Try-On": {
+      "main": [
+        [
+          {
+            "node": "Extract Task ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Task ID": {
+      "main": [
+        [
+          {
+            "node": "Update Try-On Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Try-On Status": {
+      "main": [
+        [
+          {
+            "node": "Poll for Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll for Completion": {
+      "main": [
+        [
+          {
+            "node": "Process Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Result": {
+      "main": [
+        [
+          {
+            "node": "Save Result to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Result to DB": {
+      "main": [
+        [
+          {
+            "node": "Update Execution Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Execution Status": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Update Error Status - Try-On",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Error Status - Try-On": {
+      "main": [
+        [
+          {
+            "node": "Update Error Status - Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Error Status - Execution": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-01-09T04:47:00.000Z",
+      "updatedAt": "2025-01-09T04:47:00.000Z",
+      "id": "virtual-tryon",
+      "name": "virtual-tryon"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-09T04:47:00.000Z",
+  "versionId": "1"
+} 

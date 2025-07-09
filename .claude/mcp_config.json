@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "N8N_API_URL": "https://jabaranks7.app.n8n.cloud",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYWFmNzk2ZS0wMTVkLTQ3MWUtOTVmNi03NTZjNGE4NGU3YzQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzUyMDA0MDc0LCJleHAiOjE3NTk3MjMyMDB9.HZBckc9JGo8vBLOxx2EsPGbMatTlvl4dnNx895X8WKk"
+      },
+      "description": "n8n Documentation MCP Server - provides comprehensive access to n8n node documentation and tools"
+    }
+  }
+}

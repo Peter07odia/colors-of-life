@@ -1,0 +1,243 @@
+{
+  "name": "ColorsOfLife - Smart Search Workflow (MCP)",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Smart Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-search",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "responseCode": 200
+      }
+    },
+    {
+      "id": "query-processor",
+      "name": "Advanced Query Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🧠 Advanced Query Processor for Fashion Search\n// Processes search queries with color, style, and context detection\n\nconsole.log('=== SMART SEARCH QUERY PROCESSOR START ===');\n\n// Initialize default values\nlet inputData = {};\nlet searchQuery = '';\nlet userId = 'anonymous';\nlet filters = {};\nlet maxResults = 20;\nlet offset = 0;\nlet searchType = 'text';\nlet imageUri = '';\n\ntry {\n  // Extract input data from webhook\n  const inputs = $input.all();\n  if (inputs.length > 0 && inputs[0] && inputs[0].json) {\n    inputData = inputs[0].json;\n    console.log('✅ Input received:', Object.keys(inputData));\n    \n    // Extract parameters\n    searchQuery = inputData.query || inputData.searchQuery || inputData.q || '';\n    userId = inputData.userId || inputData.user_id || 'anonymous';\n    filters = inputData.filters || {};\n    maxResults = Math.max(1, Math.min(50, parseInt(inputData.limit || inputData.maxResults) || 20));\n    offset = Math.max(0, parseInt(inputData.offset) || 0);\n    searchType = inputData.searchType || 'text';\n    imageUri = inputData.imageUri || '';\n    \n    console.log('🔍 Extracted params:', {\n      query: searchQuery,\n      userId,\n      maxResults,\n      filters,\n      searchType,\n      imageUri\n    });\n  }\n} catch (error) {\n  console.log('❌ Error processing input:', error.message);\n}\n\n// Enhanced color detection with fashion-specific intelligence\nfunction analyzeQuery(query) {\n  const original = String(query).toLowerCase().trim();\n  \n  // Enhanced color detection\n  const colorMap = {\n    'black': ['black', 'noir', 'dark', 'charcoal', 'ebony', 'jet', 'midnight'],\n    'white': ['white', 'cream', 'ivory', 'off-white', 'pearl', 'snow', 'vanilla'],\n    'red': ['red', 'crimson', 'burgundy', 'maroon', 'cherry', 'rose', 'scarlet', 'ruby'],\n    'blue': ['blue', 'navy', 'royal', 'cobalt', 'azure', 'indigo', 'sapphire', 'denim'],\n    'green': ['green', 'emerald', 'forest', 'olive', 'mint', 'sage', 'lime', 'teal'],\n    'yellow': ['yellow', 'gold', 'mustard', 'amber', 'lemon', 'sunny', 'canary'],\n    'purple': ['purple', 'violet', 'lavender', 'plum', 'orchid', 'amethyst', 'magenta'],\n    'pink': ['pink', 'rose', 'blush', 'fuchsia', 'magenta', 'coral', 'salmon'],\n    'orange': ['orange', 'coral', 'peach', 'tangerine', 'apricot', 'rust', 'copper'],\n    'brown': ['brown', 'tan', 'beige', 'camel', 'coffee', 'chocolate', 'khaki', 'taupe'],\n    'gray': ['gray', 'grey', 'silver', 'charcoal', 'slate', 'ash', 'pewter'],\n    'neutral': ['neutral', 'nude', 'natural', 'beige', 'taupe', 'sand', 'cream']\n  };\n  \n  let detectedColors = [];\n  for (const [color, variations] of Object.entries(colorMap)) {\n    if (variations.some(variation => original.includes(variation))) {\n      detectedColors.push(color);\n    }\n  }\n  \n  // Category detection with fashion-specific terms\n  let category = 'general';\n  const categoryMap = {\n    'dresses': ['dress', 'gown', 'frock', 'sundress', 'maxi', 'midi', 'mini', 'cocktail', 'evening'],\n    'tops': ['shirt', 'top', 'blouse', 'tee', 't-shirt', 'tank', 'camisole', 'sweater', 'cardigan', 'hoodie', 'pullover'],\n    'bottoms': ['pants', 'jeans', 'trouser', 'shorts', 'skirt', 'leggings', 'joggers', 'chinos', 'capris'],\n    'shoes': ['shoe', 'boot', 'sneaker', 'sandal', 'heel', 'flat', 'loafer', 'pump', 'oxford', 'mule'],\n    'outerwear': ['jacket', 'coat', 'blazer', 'vest', 'parka', 'trench', 'bomber', 'cardigan', 'wrap'],\n    'accessories': ['bag', 'purse', 'wallet', 'belt', 'hat', 'scarf', 'jewelry', 'watch', 'sunglasses', 'earrings']\n  };\n  \n  for (const [cat, keywords] of Object.entries(categoryMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      category = cat;\n      break;\n    }\n  }\n  \n  // Style and occasion detection\n  let style = 'general';\n  const styleMap = {\n    'casual': ['casual', 'relaxed', 'everyday', 'comfortable', 'laid-back', 'weekend'],\n    'formal': ['formal', 'business', 'professional', 'office', 'work', 'corporate', 'suit'],\n    'party': ['party', 'evening', 'cocktail', 'night out', 'celebration', 'festive', 'club'],\n    'summer': ['summer', 'beach', 'vacation', 'light', 'breathable', 'sunny', 'tropical'],\n    'winter': ['winter', 'warm', 'cozy', 'thermal', 'layering', 'cold', 'wool', 'fleece'],\n    'vintage': ['vintage', 'retro', 'classic', 'timeless', 'traditional', 'old-school', 'antique'],\n    'modern': ['modern', 'contemporary', 'trendy', 'current', 'fashionable', 'latest', 'new'],\n    'bohemian': ['boho', 'bohemian', 'free-spirited', 'artsy', 'eclectic', 'hippie', 'flowy'],\n    'athletic': ['athletic', 'sporty', 'gym', 'workout', 'fitness', 'active', 'performance'],\n    'elegant': ['elegant', 'sophisticated', 'classy', 'refined', 'luxurious', 'graceful']\n  };\n  \n  for (const [styleType, keywords] of Object.entries(styleMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      style = styleType;\n      break;\n    }\n  }\n  \n  // Price range detection\n  let priceRange = null;\n  if (original.includes('cheap') || original.includes('budget') || original.includes('affordable')) {\n    priceRange = { min: 0, max: 50 };\n  } else if (original.includes('expensive') || original.includes('luxury') || original.includes('premium')) {\n    priceRange = { min: 200, max: 1000 };\n  } else if (original.includes('mid-range') || original.includes('moderate')) {\n    priceRange = { min: 50, max: 200 };\n  }\n  \n  // Brand detection\n  const brandKeywords = ['nike', 'adidas', 'zara', 'h&m', 'gucci', 'prada', 'levi', 'calvin klein', 'tommy hilfiger'];\n  let detectedBrand = null;\n  for (const brand of brandKeywords) {\n    if (original.includes(brand)) {\n      detectedBrand = brand;\n      break;\n    }\n  }\n  \n  // Create enhanced search terms\n  const enhancedTerms = [original];\n  if (detectedColors.length > 0) enhancedTerms.push(...detectedColors);\n  if (category !== 'general') enhancedTerms.push(category);\n  if (style !== 'general') enhancedTerms.push(style);\n  if (detectedBrand) enhancedTerms.push(detectedBrand);\n  \n  // Add general fashion terms\n  enhancedTerms.push('fashion', 'clothing', 'style', 'outfit');\n  \n  return {\n    original: query.trim(),\n    expanded: [...new Set(enhancedTerms)].join(' '),\n    colors: detectedColors,\n    category: category,\n    style: style,\n    priceRange: priceRange,\n    brand: detectedBrand,\n    searchTerms: enhancedTerms,\n    intent: determineSearchIntent(original)\n  };\n}\n\n// Determine user search intent\nfunction determineSearchIntent(query) {\n  if (query.includes('similar') || query.includes('like this')) return 'similar';\n  if (query.includes('outfit') || query.includes('look')) return 'complete_outfit';\n  if (query.includes('match') || query.includes('goes with')) return 'coordination';\n  if (query.includes('trend') || query.includes('popular')) return 'trending';\n  if (query.includes('occasion') || query.includes('event')) return 'occasion_based';\n  if (query.includes('buy') || query.includes('purchase') || query.includes('shop')) return 'shopping';\n  return 'general_search';\n}\n\n// Process the query\nlet queryAnalysis = {};\nif (searchType === 'image' && imageUri) {\n  queryAnalysis = {\n    original: 'image_search',\n    expanded: 'image search visual similarity fashion clothing',\n    colors: [],\n    category: 'general',\n    style: 'general',\n    priceRange: null,\n    brand: null,\n    searchTerms: ['image', 'search', 'visual', 'similarity', 'fashion'],\n    intent: 'image_search'\n  };\n} else {\n  queryAnalysis = analyzeQuery(searchQuery);\n}\n\n// Merge with provided filters\nconst allColors = [...new Set([...queryAnalysis.colors, ...(filters.colors || [])])];\nconst finalPriceRange = filters.priceRange || queryAnalysis.priceRange;\nconst finalCategories = filters.categories || [queryAnalysis.category].filter(c => c !== 'general');\n\n// Build comprehensive search data\nconst result = {\n  userId: userId,\n  searchQuery: {\n    ...queryAnalysis,\n    colors: allColors\n  },\n  filters: {\n    ...filters,\n    colors: allColors,\n    categories: finalCategories,\n    priceRange: finalPriceRange,\n    brands: filters.brands || (queryAnalysis.brand ? [queryAnalysis.brand] : []),\n    source: filters.source || 'all'\n  },\n  searchType: searchType,\n  imageUri: imageUri,\n  maxResults: maxResults,\n  offset: offset,\n  timestamp: new Date().toISOString(),\n  searchId: `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,\n  debug: {\n    originalInput: inputData,\n    detectedColors: queryAnalysis.colors,\n    detectedCategory: queryAnalysis.category,\n    detectedStyle: queryAnalysis.style,\n    searchIntent: queryAnalysis.intent,\n    enhancedQuery: queryAnalysis.expanded,\n    searchType: searchType\n  }\n};\n\nconsole.log('🎯 Final processed data:', JSON.stringify(result, null, 2));\nconsole.log('=== SMART SEARCH QUERY PROCESSOR END ===');\n\nreturn result;"
+      }
+    },
+    {
+      "id": "database-search",
+      "name": "Database Search",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "fashion_items",
+        "useCustomSchema": false,
+        "schema": "public",
+        "returnAll": false,
+        "limit": "{{ $json.maxResults }}",
+        "additionalFields": {
+          "select": "id, name, description, price, original_price, images, colors, sizes, tags, style_attributes, materials, product_code, popularity_score, discount_percentage, is_featured, brands!inner(name, logo_url), categories!inner(name, icon_name)"
+        },
+        "filterType": "manual",
+        "matchType": "anyFilter",
+        "conditions": {
+          "conditions": [
+            {
+              "keyName": "is_active",
+              "condition": "equal",
+              "keyValue": "true"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "web-search",
+      "name": "Web Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.search.brave.com/res/v1/web/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Subscription-Token",
+              "value": "{{ $vars.BRAVE_API_KEY }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "{{ $json.searchQuery.expanded }} fashion clothing buy shop"
+            },
+            {
+              "name": "count",
+              "value": "{{ Math.min($json.maxResults, 15) }}"
+            },
+            {
+              "name": "offset",
+              "value": "{{ $json.offset || 0 }}"
+            },
+            {
+              "name": "mkt",
+              "value": "en-US"
+            },
+            {
+              "name": "safesearch",
+              "value": "moderate"
+            },
+            {
+              "name": "search_lang",
+              "value": "en"
+            },
+            {
+              "name": "country",
+              "value": "US"
+            },
+            {
+              "name": "result_filter",
+              "value": "web"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "image-search",
+      "name": "Image Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 600],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "headerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.OPENAI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"Analyze this fashion image and describe the clothing items, colors, style, and suggest search terms for finding similar items. Focus on: colors, clothing type, style, material, pattern, and brand if visible.\"\n        },\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"{{ $json.imageUri }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 500\n}"
+      }
+    },
+    {
+      "id": "results-aggregator",
+      "name": "Results Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🎯 Smart Results Aggregator\n// Combines database, web, and image search results\n\nconsole.log('=== RESULTS AGGREGATOR START ===');\n\nconst allInputs = $input.all();\nlet queryData = null;\nlet dbResults = [];\nlet webResults = [];\nlet imageAnalysis = null;\n\n// Process inputs from different sources\nallInputs.forEach((input, index) => {\n  const data = input.json;\n  console.log(`Processing input ${index}:`, typeof data, Object.keys(data || {}));\n  \n  // Query data (from query processor)\n  if (data && data.searchQuery && data.userId) {\n    queryData = data;\n    console.log('✅ Found query data:', queryData.searchId);\n  }\n  // Database results (from Supabase)\n  else if (Array.isArray(data)) {\n    dbResults = data.map((item, idx) => {\n      const images = Array.isArray(item.images) ? item.images : (item.images ? [item.images] : []);\n      return {\n        id: item.id || `db_${idx}`,\n        title: item.name || 'Fashion Item',\n        description: item.description || '',\n        price: item.price ? `$${item.price}` : null,\n        originalPrice: item.original_price ? `$${item.original_price}` : null,\n        brand: item.brands?.name || 'Brand',\n        category: item.categories?.name || 'Fashion',\n        colors: item.colors || [],\n        tags: item.tags || [],\n        images: images,\n        image: images[0] || null,\n        source: 'database',\n        relevanceScore: calculateRelevanceScore(item, queryData),\n        discount: item.discount_percentage || (item.original_price && item.price ? \n          Math.round(((item.original_price - item.price) / item.original_price) * 100) : null),\n        isFeatured: item.is_featured || false,\n        popularityScore: item.popularity_score || 0,\n        materials: item.materials || [],\n        sizes: item.sizes || [],\n        productCode: item.product_code\n      };\n    });\n    console.log(`✅ Processed ${dbResults.length} database results`);\n  }\n  // Web search results (from Brave API)\n  else if (data && data.web && data.web.results) {\n    webResults = data.web.results.map((item, idx) => {\n      // Extract price from description or title\n      const priceMatch = (item.description + ' ' + item.title).match(/\\$([0-9,]+(?:\\.[0-9]{2})?)/g);\n      const price = priceMatch ? priceMatch[0] : null;\n      \n      return {\n        id: `web_${idx}`,\n        title: item.title || 'Fashion Item',\n        description: item.description || '',\n        url: item.url || '',\n        price: price,\n        source: 'web',\n        relevanceScore: calculateWebRelevanceScore(item, queryData),\n        publishedTime: item.published_time || null,\n        thumbnail: item.thumbnail || null,\n        image: item.thumbnail || null\n      };\n    });\n    console.log(`✅ Processed ${webResults.length} web results`);\n  }\n  // Image analysis results (from OpenAI)\n  else if (data && data.choices && data.choices[0]) {\n    imageAnalysis = {\n      analysis: data.choices[0].message.content,\n      model: data.model || 'gpt-4o-mini',\n      usage: data.usage || null\n    };\n    console.log('✅ Processed image analysis');\n  }\n});\n\n// Calculate relevance score for database items\nfunction calculateRelevanceScore(item, queryData) {\n  if (!queryData) return 50;\n  \n  let score = 0;\n  const query = queryData.searchQuery;\n  \n  // Color matching\n  if (query.colors && query.colors.length > 0) {\n    const colorMatches = query.colors.filter(color => \n      item.colors && item.colors.includes(color)\n    ).length;\n    score += colorMatches * 15;\n  }\n  \n  // Text matching in name and description\n  const text = `${item.name || ''} ${item.description || ''}`.toLowerCase();\n  const originalQuery = query.original.toLowerCase();\n  if (text.includes(originalQuery)) {\n    score += 30;\n  }\n  \n  // Category matching\n  if (query.category !== 'general' && item.categories?.name) {\n    if (item.categories.name.toLowerCase().includes(query.category)) {\n      score += 20;\n    }\n  }\n  \n  // Featured items bonus\n  if (item.is_featured) {\n    score += 10;\n  }\n  \n  // Popularity bonus\n  score += Math.min(item.popularity_score || 0, 20);\n  \n  // Price range matching\n  if (query.priceRange && item.price) {\n    const price = parseFloat(item.price);\n    if (price >= query.priceRange.min && price <= query.priceRange.max) {\n      score += 15;\n    }\n  }\n  \n  return Math.min(score, 100);\n}\n\n// Calculate relevance score for web results\nfunction calculateWebRelevanceScore(item, queryData) {\n  if (!queryData) return 25;\n  \n  let score = 0;\n  const query = queryData.searchQuery;\n  \n  // Title matching\n  const title = item.title.toLowerCase();\n  const originalQuery = query.original.toLowerCase();\n  if (title.includes(originalQuery)) {\n    score += 20;\n  }\n  \n  // Fashion-related keywords\n  const fashionKeywords = ['fashion', 'clothing', 'apparel', 'style', 'outfit', 'wear'];\n  const fashionMatches = fashionKeywords.filter(keyword => \n    title.includes(keyword) || item.description.toLowerCase().includes(keyword)\n  ).length;\n  score += fashionMatches * 3;\n  \n  // Shopping sites bonus\n  const shoppingSites = ['amazon', 'ebay', 'etsy', 'shopify', 'store', 'shop', 'buy'];\n  const shoppingMatches = shoppingSites.filter(site => \n    item.url.toLowerCase().includes(site)\n  ).length;\n  score += shoppingMatches * 5;\n  \n  return Math.min(score, 50);\n}\n\n// Fallback query data\nif (!queryData) {\n  queryData = {\n    searchQuery: { original: 'fashion', colors: [], category: 'general' },\n    userId: 'anonymous',\n    searchId: `fallback_${Date.now()}`,\n    searchType: 'text',\n    maxResults: 20\n  };\n}\n\n// Combine and sort results\nlet combinedResults = [...dbResults, ...webResults];\n\n// Sort by relevance score (descending)\ncombinedResults.sort((a, b) => b.relevanceScore - a.relevanceScore);\n\n// Limit results\nconst finalResults = combinedResults.slice(0, queryData.maxResults || 20);\n\n// Calculate result statistics\nconst stats = {\n  totalResults: finalResults.length,\n  databaseResults: dbResults.length,\n  webResults: webResults.length,\n  hasImageAnalysis: !!imageAnalysis,\n  averageRelevanceScore: finalResults.length > 0 ? \n    Math.round(finalResults.reduce((sum, item) => sum + item.relevanceScore, 0) / finalResults.length) : 0,\n  searchSources: ['database', 'web', ...(imageAnalysis ? ['image'] : [])],\n  processingTime: new Date().toISOString()\n};\n\n// Build final response\nconst response = {\n  success: true,\n  query: queryData.searchQuery,\n  results: finalResults,\n  metadata: {\n    ...stats,\n    searchId: queryData.searchId,\n    userId: queryData.userId,\n    searchType: queryData.searchType,\n    timestamp: new Date().toISOString()\n  },\n  imageAnalysis: imageAnalysis,\n  suggestions: generateSuggestions(finalResults, queryData)\n};\n\n// Generate search suggestions\nfunction generateSuggestions(results, queryData) {\n  const suggestions = {\n    tryBroaderTerms: [],\n    popularSearches: ['dresses', 'casual wear', 'formal attire', 'summer fashion', 'accessories'],\n    searchTips: [],\n    relatedColors: [],\n    relatedCategories: []\n  };\n  \n  // If few results, suggest broader terms\n  if (results.length < 3) {\n    suggestions.tryBroaderTerms = [\n      'Try using broader terms like \"clothing\" or \"fashion\"',\n      'Remove specific color or style filters',\n      'Search for the general category instead of specific items'\n    ];\n  }\n  \n  // Extract related colors from results\n  const colorCounts = {};\n  results.forEach(item => {\n    if (item.colors) {\n      item.colors.forEach(color => {\n        colorCounts[color] = (colorCounts[color] || 0) + 1;\n      });\n    }\n  });\n  \n  suggestions.relatedColors = Object.entries(colorCounts)\n    .sort((a, b) => b[1] - a[1])\n    .slice(0, 5)\n    .map(([color]) => color);\n  \n  // Generate search tips based on query\n  if (queryData.searchType === 'image') {\n    suggestions.searchTips = [\n      'Make sure the image is clear and well-lit',\n      'Focus on a single clothing item for better results',\n      'Try different angles or lighting for the same item'\n    ];\n  } else {\n    suggestions.searchTips = [\n      'Use specific color names for better matches',\n      'Try combining style with occasion (e.g., \"casual summer dress\")',\n      'Include brand names if you have a preference'\n    ];\n  }\n  \n  return suggestions;\n}\n\nconsole.log('📊 Final response stats:', {\n  totalResults: response.results.length,\n  databaseResults: response.metadata.databaseResults,\n  webResults: response.metadata.webResults,\n  hasImageAnalysis: response.metadata.hasImageAnalysis,\n  averageRelevanceScore: response.metadata.averageRelevanceScore\n});\n\nconsole.log('=== RESULTS AGGREGATOR END ===');\n\nreturn response;"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Smart Search Webhook": {
+      "main": [
+        [
+          {
+            "node": "Advanced Query Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Advanced Query Processor": {
+      "main": [
+        [
+          {
+            "node": "Database Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Image Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Search": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Search": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true
+  },
+  "active": false,
+  "staticData": null,
+  "pinData": null
+} 

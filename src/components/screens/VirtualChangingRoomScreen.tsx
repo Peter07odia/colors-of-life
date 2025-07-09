@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -14,6 +12,8 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  ImageStyle,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -40,15 +40,22 @@ import {
   Bookmark,
   ZoomIn,
   ZoomOut,
+  Upload,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera as ExpoCamera } from 'expo-camera';
+import { Camera as ExpoCamera, useCameraPermissions } from 'expo-camera';
+import * as MediaLibrary from 'expo-media-library';
 import { Video } from 'expo-av';
+import { fashionItemService } from '../../services/fashionItemService';
 
 import { Button } from '../ui/Button';
 import { Heading, AppText } from '../ui/Typography';
 import { colors } from '../../constants/colors';
 import { useTryOnContext } from '../../contexts/TryOnContext';
+import { supabaseEdgeFunctionService } from '../../lib/services/supabaseEdgeFunctionService';
+import { supabase } from '../../lib/supabase';
+import { PhotoUploadScreen } from '../tryOn/PhotoUploadScreen';
+// Removed DEFAULT_MODELS import to fix errors
 
 const { width, height } = Dimensions.get('window');
 
@@ -56,7 +63,7 @@ const { width, height } = Dimensions.get('window');
 const sampleAvatar = {
   id: 'user-avatar-1',
   name: 'Your Avatar',
-  image: require('../../../assets/virtual try on demo/20250408_1616_Stylish Simplicity Display_remix_01jrbgr0zrf1887vc81r8rs7ky.png'),
+  image: 'https://jiwiclemrwjojoewmcnc.supabase.co/storage/v1/object/public/fashion-items/demo/avatar-sample.png',
   customizations: {
     background: 'studio',
     pose: 'standing',
@@ -64,49 +71,8 @@ const sampleAvatar = {
   },
 };
 
-// Sample wardrobe items - will connect to real data later
-const sampleWardrobeItems = [
-  {
-    id: 'item-1',
-    name: 'Classic White T-Shirt',
-    category: 'tops',
-    price: 29.99,
-    brand: 'Fashion Co.',
-    image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=400&fit=crop',
-    isFavorite: true,
-    dateAdded: '2024-01-15'
-  },
-  {
-    id: 'item-2',
-    name: 'Blue Denim Jeans',
-    category: 'bottoms',
-    price: 79.99,
-    brand: 'Denim Brand',
-    image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=300&h=400&fit=crop',
-    isFavorite: false,
-    dateAdded: '2024-01-14'
-  },
-  {
-    id: 'item-3',
-    name: 'Black Leather Jacket',
-    category: 'outerwear',
-    price: 199.99,
-    brand: 'Premium Leather',
-    image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop',
-    isFavorite: true,
-    dateAdded: '2024-01-13'
-  },
-  {
-    id: 'item-4',
-    name: 'White Sneakers',
-    category: 'shoes',
-    price: 89.99,
-    brand: 'Sport Brand',
-    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=300&h=400&fit=crop',
-    isFavorite: false,
-    dateAdded: '2024-01-12'
-  }
-];
+// Use fashionItemService to load real database items
+// Note: wardrobeItems state moved inside component
 
 // Sample current outfit state
 const initialOutfitState = {
@@ -133,6 +99,53 @@ const poseOptions = [
   { id: 'elegant', name: 'Elegant', icon: '💃' }
 ];
 
+// Model options with all 6 default models from defaultModels.ts
+const modelOptions = [
+  {
+    id: 'default-petite',
+    name: 'Petite Model',
+    type: 'default' as const,
+    description: 'Perfect for petite body types and smaller clothing sizes',
+    image: require('../../../assets/default models/petite.png')
+  },
+  {
+    id: 'default-average', 
+    name: 'Average Model',
+    type: 'default' as const,
+    description: 'Ideal for standard body types and regular sizing',
+    image: require('../../../assets/default models/average.png')
+  },
+  {
+    id: 'default-athletic',
+    name: 'Athletic Model',
+    type: 'default' as const,
+    description: 'Great for athletic builds and activewear',
+    image: require('../../../assets/default models/athletic.png')
+  },
+  {
+    id: 'default-curvy',
+    name: 'Curvy Model',
+    type: 'default' as const,
+    description: 'Perfect for curvy body types and plus-size fashion',
+    image: require('../../../assets/default models/curvy.png')
+  },
+  {
+    id: 'default-medium-large',
+    name: 'Medium-Large Model', 
+    type: 'default' as const,
+    description: 'Ideal for medium to large body types',
+    image: require('../../../assets/default models/medium-large.png')
+  },
+  {
+    id: 'default-xl',
+    name: 'XL Model',
+    type: 'default' as const,
+    description: 'Perfect for extra-large sizes and extended fit clothing',
+    image: require('../../../assets/default models/xl.png')
+  }
+];
+
+
 interface VirtualChangingRoomScreenProps {
   userHasAvatar?: boolean;
 }
@@ -144,14 +157,40 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
   const { setHasClothesForTryOn, setSelectedClothesCount } = useTryOnContext();
   
   // State management
+  const [wardrobeItems, setWardrobeItems] = useState([]);
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(true);
-  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(true);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false); // Open by default to show default models
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentOutfit, setCurrentOutfit] = useState(initialOutfitState);
-  const [avatarSettings, setAvatarSettings] = useState(sampleAvatar.customizations);
+  const [avatarSettings, setAvatarSettings] = useState({
+    selectedId: 'default-average', // ID of selected model or avatar - default to average model
+    selectedType: 'default' // 'default' for model options, 'user' for user avatars
+  });
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
-  const [showAvatarPrompt, setShowAvatarPrompt] = useState(!userHasAvatar);
+  const [showAvatarPrompt, setShowAvatarPrompt] = useState(false);
+  const [showPhotoUpload, setShowPhotoUpload] = useState(false);
   const [showOutfitFloatingCard, setShowOutfitFloatingCard] = useState(false);
+  const [avatarCreationStep, setAvatarCreationStep] = useState<'prompt' | 'capture' | 'processing' | 'complete'>('prompt');
+
+  // Load real fashion items from database
+  useEffect(() => {
+    const loadFashionItems = async () => {
+      try {
+        const items = await fashionItemService.getFashionItems(20);
+        console.log('✅ Loaded fashion items from database:', items.length);
+        setWardrobeItems(items);
+      } catch (error) {
+        console.error('Failed to load fashion items:', error);
+      }
+    };
+    loadFashionItems();
+  }, []);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+  const [isProcessingAvatar, setIsProcessingAvatar] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [avatarProcessingProgress, setAvatarProcessingProgress] = useState(0);
+  const [userAvatars, setUserAvatars] = useState<any[]>([]); // Store user's created avatars
 
   // Categories for filtering
   const categories = [
@@ -165,8 +204,8 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
 
   // Filter items by category
   const filteredItems = selectedCategory === 'all' 
-    ? sampleWardrobeItems 
-    : sampleWardrobeItems.filter(item => item.category === selectedCategory);
+    ? wardrobeItems 
+    : wardrobeItems.filter(item => item.category === selectedCategory);
 
   // Calculate total outfit price
   const totalOutfitPrice = Object.values(currentOutfit)
@@ -189,13 +228,42 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
     setSelectedClothesCount(clothesCount);
   }, [currentOutfit, hasClothesForTryOn, setHasClothesForTryOn, setSelectedClothesCount]);
 
+  // Load user avatars on component mount
+  useEffect(() => {
+    loadUserAvatars();
+  }, []);
+
+  const loadUserAvatars = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (userId) {
+        const avatars = await supabaseEdgeFunctionService.getUserAvatars(userId);
+        setUserAvatars(avatars);
+      }
+    } catch (error) {
+      console.error('Failed to load user avatars:', error);
+    }
+  };
+
   // Handle item try-on
   const handleTryOnItem = (item: any) => {
+    console.log('🎯 Demo item selected for try-on:', {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      brand: item.brand,
+      price: item.price
+    });
+    
     setCurrentOutfit(prev => ({
       ...prev,
       [item.category]: item
     }));
     setShowOutfitFloatingCard(true);
+    
+    console.log('✅ Item added to current outfit in category:', item.category);
   };
 
   // Handle remove item from outfit
@@ -215,49 +283,428 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
     }
   };
 
+  // Add virtual try-on processing state with enhanced progress tracking
+  const [isProcessingTryOn, setIsProcessingTryOn] = useState(false);
+  const [tryOnResults, setTryOnResults] = useState<any>(null);
+  const [tryOnStep, setTryOnStep] = useState<'idle' | 'validating_avatar' | 'processing_image' | 'generating_video' | 'finalizing' | 'complete'>('idle');
+  const [tryOnProgress, setTryOnProgress] = useState(0);
+  const [tryOnCurrentStep, setTryOnCurrentStep] = useState('');
+
   // Handle virtual try-on process
-  const handleVirtualTryOn = () => {
+  const handleVirtualTryOn = async () => {
     if (!hasClothesForTryOn) return;
     
-    console.log('Starting virtual try-on with outfit:', currentOutfit);
-    // This would typically trigger the virtual try-on API or process
+    setIsProcessingTryOn(true);
+    setTryOnStep('validating_avatar');
+    setTryOnProgress(0);
+    setTryOnCurrentStep('Starting try-on process...');
+    
+         try {
+       // Get current user ID and avatar ID
+       const { data: { session } } = await supabase.auth.getSession();
+       const userId = session?.user?.id || 'anonymous-user';
+       
+       // Get currently selected avatar ID
+       const avatarId = avatarSettings.selectedType === 'user' 
+         ? avatarSettings.selectedId
+         : avatarSettings.selectedId; // Default models already have correct ID format
+       
+       // Get selected clothing items
+       const selectedItems = Object.entries(currentOutfit)
+         .filter(([category, item]) => item !== null)
+         .map(([category, item]) => ({ 
+           category, 
+           imageUrl: item.image,
+           image: item.image, // Include both for compatibility
+           name: item.name,
+           itemId: item.id,
+           price: item.price,
+           brand: item.brand
+         }));
+
+       console.log('Starting virtual try-on with outfit:', selectedItems);
+       
+               // Start virtual try-on with Supabase Edge Function
+        const result = await supabaseEdgeFunctionService.performVirtualTryOn({
+          avatarId,
+          clothingItems: selectedItems,
+          userId,
+          // Add missing fields that N8N workflow expects
+          clothingItemData: {
+            processingSettings: {
+              qualityLevel: 'high',
+              outputFormat: 'both'
+            }
+          },
+          tryonSettings: {
+            qualityLevel: 'high',
+            outputFormat: 'both',
+            autoCreateAvatar: false
+          }
+        });
+
+        // Poll for completion with enhanced progress tracking
+        supabaseEdgeFunctionService.pollProcessingStatus(
+         'tryon',
+         result.tryOnId,
+         (status) => {
+           console.log('🎬 Try-on progress update:', status);
+           
+           if (status?.progressPercentage !== undefined) {
+             setTryOnProgress(status.progressPercentage);
+           }
+           
+           if (status?.currentStep) {
+             setTryOnCurrentStep(status.currentStep);
+             // Map detailed steps to UI steps
+             switch (status.currentStep) {
+               case 'validating_avatar':
+                 setTryOnStep('validating_avatar');
+                 break;
+               case 'processing_image':
+                 setTryOnStep('processing_image');
+                 break;
+               case 'generating_video':
+                 setTryOnStep('generating_video');
+                 break;
+               case 'completed':
+                 setTryOnStep('complete');
+                 break;
+               default:
+                 setTryOnStep('processing_image');
+             }
+           }
+           
+           if (status?.status === 'completed') {
+             setTryOnStep('complete');
+             setTryOnProgress(100);
+             setTryOnResults({
+               resultImageUrl: status.resultImageUrl,
+               resultVideoUrl: status.resultVideoUrl,
+               processingTime: status.processingTime,
+               qualityScore: status.qualityScore,
+               tryOnId: status.tryOnId
+             });
+             setIsProcessingTryOn(false);
+             console.log('✅ Try-on completed successfully:', status);
+           } else if (status?.status === 'failed') {
+             setIsProcessingTryOn(false);
+             setTryOnStep('idle');
+             setTryOnProgress(0);
+             const errorMessage = status.errorMessage || 'Virtual try-on processing failed. Please try again.';
+             Alert.alert('Try-On Failed', errorMessage);
+             console.log('❌ Try-on failed:', status);
+           } else if (!status) {
+             console.log('⚠️ Received null status in try-on polling');
+           }
+         }
+       );
+       
+     } catch (error) {
+      console.error('Virtual try-on error:', error);
+      setIsProcessingTryOn(false);
+      setTryOnStep('idle');
+      
+      // Show specific error message if available
+      const errorMessage = error?.message || error?.error?.message || 'Failed to process virtual try-on. Please try again.';
+      Alert.alert('Error', errorMessage);
+      console.log('Error details:', {
+        message: error?.message,
+        error: error?.error,
+        full: error
+      });
+    }
   };
 
-  // Avatar Creation Prompt
-  const AvatarCreationPrompt = () => (
-    <Modal visible={showAvatarPrompt} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={styles.avatarPromptContainer}>
-          <Text style={styles.avatarPromptTitle}>Create Your Avatar</Text>
-          <Text style={styles.avatarPromptText}>
-            Upload a photo to create your personalized avatar for virtual try-ons
-          </Text>
-          <View style={styles.avatarPromptButtons}>
-            <TouchableOpacity 
-              style={[styles.avatarPromptButton, styles.avatarPromptButtonSecondary]}
-              onPress={() => setShowAvatarPrompt(false)}
-            >
-              <Text style={styles.avatarPromptButtonTextSecondary}>Skip for now</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.avatarPromptButton, styles.avatarPromptButtonPrimary]}
-              onPress={() => {
-                // Handle avatar creation
-                setShowAvatarPrompt(false);
-              }}
-            >
-              <Camera size={20} color="#fff" />
-              <Text style={styles.avatarPromptButtonTextPrimary}>Create Avatar</Text>
-            </TouchableOpacity>
+  // Enhanced Avatar Creation Flow
+  const AvatarCreationFlow = () => {
+    const handleCameraCapture = async () => {
+      try {
+        if (!cameraPermission?.granted) {
+          const permission = await requestCameraPermission();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Camera access is required to create your avatar');
+            return;
+          }
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [3, 4],
+          quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          setCapturedImage(result.assets[0].uri);
+          setAvatarCreationStep('processing');
+          await processAvatarCreation(result.assets[0].uri);
+        }
+      } catch (error) {
+        console.error('Camera capture error:', error);
+        Alert.alert('Error', 'Failed to capture image');
+      }
+    };
+
+    const handlePhotoLibrary = async () => {
+      try {
+        if (!mediaPermission?.granted) {
+          const permission = await requestMediaPermission();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Photo library access is required');
+            return;
+          }
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [3, 4],
+          quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets[0]) {
+          setCapturedImage(result.assets[0].uri);
+          setAvatarCreationStep('processing');
+          await processAvatarCreation(result.assets[0].uri);
+        }
+      } catch (error) {
+        console.error('Photo library error:', error);
+        Alert.alert('Error', 'Failed to select image');
+      }
+    };
+
+         const processAvatarCreation = async (imageUri: string) => {
+       setIsProcessingAvatar(true);
+       setAvatarProcessingProgress(0);
+ 
+       try {
+         // Get current user ID - simplified without complex auth timeout handling
+         const { data: { session } } = await supabase.auth.getSession();
+         
+         // For development/testing: Use a fallback user ID if no session
+         const userId = session?.user?.id || 'anonymous-user-' + Date.now();
+         
+         console.log('Processing avatar for user:', userId);
+         
+         // Start avatar creation
+          const result = await supabaseEdgeFunctionService.createAvatar({
+            imageUri,
+            userId: userId
+          });
+  
+          // Poll for completion
+          supabaseEdgeFunctionService.pollProcessingStatus(
+           'avatar',
+           result.avatarId,
+           (status) => {
+             // Update progress based on status
+             console.log('📊 Avatar polling status update:', status);
+             if (status?.status === 'processing') {
+               setAvatarProcessingProgress(70);
+             } else if (status?.status === 'completed') {
+               setAvatarProcessingProgress(100);
+               setAvatarCreationStep('complete');
+               setIsProcessingAvatar(false);
+               console.log('Avatar creation completed:', status);
+               // Reload avatars to show the new one
+               loadUserAvatars();
+             } else if (status?.status === 'failed' || status?.status === 'timeout') {
+               setIsProcessingAvatar(false);
+               Alert.alert('Error', status?.message || 'Avatar processing failed. Please try again.');
+               setAvatarCreationStep('prompt');
+             } else if (!status) {
+               console.log('⚠️ Received null status in polling callback');
+             }
+           }
+         );
+         
+       } catch (error) {
+         console.error('Avatar processing error:', error);
+         setIsProcessingAvatar(false);
+         Alert.alert('Error', 'Failed to process avatar. Please try again.');
+         setAvatarCreationStep('prompt');
+       }
+     };
+
+    return (
+      <Modal visible={showAvatarPrompt} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.avatarPromptContainer, avatarCreationStep === 'processing' && styles.processingContainer]}>
+            
+            {avatarCreationStep === 'prompt' && (
+              <>
+                <TouchableOpacity 
+                  style={styles.floatingCloseButton}
+                  onPress={() => setShowAvatarPrompt(false)}
+                >
+                  <X size={18} color="#fff" />
+                </TouchableOpacity>
+                
+                <Text style={styles.avatarPromptTitle}>Create Your Avatar</Text>
+                <Text style={styles.avatarPromptText}>
+                  Upload a photo to create your personalized avatar for virtual try-ons
+                </Text>
+                
+                <View style={styles.photoOptionsContainer}>
+                  <TouchableOpacity 
+                    style={[styles.photoOptionCard, styles.cameraCard]}
+                    onPress={handleCameraCapture}
+                  >
+                    <View style={styles.photoOptionIcon}>
+                      <Camera size={24} color="#fff" />
+                    </View>
+                    <Text style={styles.photoOptionTitle}>Take Photo</Text>
+                    <Text style={styles.photoOptionSubtitle}>Use camera</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.photoOptionCard, styles.galleryCard]}
+                    onPress={handlePhotoLibrary}
+                  >
+                    <View style={[styles.photoOptionIcon, styles.galleryIcon]}>
+                      <Upload size={24} color={colors.primary} />
+                    </View>
+                    <Text style={[styles.photoOptionTitle, styles.galleryTitle]}>Choose from Gallery</Text>
+                    <Text style={[styles.photoOptionSubtitle, styles.gallerySubtitle]}>Select existing photo</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {avatarCreationStep === 'processing' && (
+              <>
+                <ActivityIndicator size="large" color={colors.primary} style={styles.processingSpinner} />
+                <Text style={styles.processingTitle}>Creating Your Avatar</Text>
+                <Text style={styles.processingText}>
+                  Processing your photo with AI magic...
+                </Text>
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${avatarProcessingProgress}%` }]} />
+                  </View>
+                  <Text style={styles.progressText}>{avatarProcessingProgress}%</Text>
+                </View>
+                {capturedImage && (
+                  <Image source={{ uri: capturedImage }} style={styles.processingPreview} />
+                )}
+              </>
+            )}
+
+            {avatarCreationStep === 'complete' && (
+              <>
+                <View style={styles.successIcon}>
+                  <Star size={40} color={colors.primary} fill={colors.primary} />
+                </View>
+                <Text style={styles.avatarPromptTitle}>Avatar Created!</Text>
+                <Text style={styles.avatarPromptText}>
+                  Your personalized avatar is ready for virtual try-ons
+                </Text>
+                <TouchableOpacity 
+                  style={[styles.avatarPromptButton, styles.avatarPromptButtonPrimary]}
+                  onPress={() => {
+                    setShowAvatarPrompt(false);
+                    setAvatarCreationStep('prompt');
+                  }}
+                >
+                  <Text style={styles.avatarPromptButtonTextPrimary}>Start Trying On!</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
-      </View>
-    </Modal>
-  );
+      </Modal>
+    );
+  };
+
+  const handlePhotosUploaded = async (photos: { front?: string; side?: string; back?: string }) => {
+    // Close photo upload screen
+    setShowPhotoUpload(false);
+    
+    // Open the avatar settings drawer (right sidebar)
+    setIsRightSidebarCollapsed(false);
+    setIsLeftSidebarCollapsed(true); // Ensure left drawer is closed
+    
+    // Start avatar creation process
+    setAvatarCreationStep('processing');
+    setIsProcessingAvatar(true);
+    setAvatarProcessingProgress(0);
+    
+    try {
+      // Get current user ID - simplified approach
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // For development/testing: Use a fallback user ID if no session
+      const userId = session?.user?.id || 'anonymous-user-' + Date.now();
+      
+      // Use the front image for avatar creation
+      const frontImage = photos.front;
+      if (!frontImage) {
+        throw new Error('Front view image is required');
+      }
+      
+      console.log('Processing avatar with photos for user:', userId);
+      
+      // Start avatar creation
+      const result = await supabaseEdgeFunctionService.createAvatar({
+        imageUri: frontImage,
+        userId: userId
+      });
+
+      // Poll for completion with progress updates
+      supabaseEdgeFunctionService.pollProcessingStatus(
+        'avatar',
+        result.avatarId,
+        (status) => {
+          // Update progress based on status
+          if (status.status === 'processing') {
+            if (status.step === 'background_removal') {
+              setAvatarProcessingProgress(25);
+            } else if (status.step === 'enhancement') {
+              setAvatarProcessingProgress(50);
+            } else if (status.step === 'generation') {
+              setAvatarProcessingProgress(75);
+            }
+          } else if (status.status === 'completed') {
+            setAvatarProcessingProgress(100);
+            setAvatarCreationStep('complete');
+            setIsProcessingAvatar(false);
+            console.log('Avatar creation completed:', status);
+            // Reload avatars to show the new one
+            loadUserAvatars();
+            
+            // Optionally close the avatar drawer after a delay
+            setTimeout(() => {
+              setIsRightSidebarCollapsed(true);
+            }, 2000);
+          } else if (status.status === 'failed') {
+            setIsProcessingAvatar(false);
+            setAvatarCreationStep('prompt');
+            Alert.alert('Error', 'Avatar processing failed. Please try again.');
+          }
+        }
+      );
+      
+    } catch (error) {
+      console.error('Avatar processing error:', error);
+      setIsProcessingAvatar(false);
+      setAvatarCreationStep('prompt');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process avatar. Please try again.';
+      Alert.alert('Avatar Creation Error', errorMessage);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-      <AvatarCreationPrompt />
+      <AvatarCreationFlow />
+      
+      {/* Photo Upload Screen */}
+      <PhotoUploadScreen
+        visible={showPhotoUpload}
+        onClose={() => setShowPhotoUpload(false)}
+        onPhotosUploaded={handlePhotosUploaded}
+      />
 
       <View style={styles.mainContainer}>
         {/* Left Sidebar - Wardrobe */}
@@ -317,7 +764,14 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
                     onPress={() => handleTryOnItem(item)}
                   >
                     <View style={styles.wardrobeItemImageContainer}>
-                      <Image source={{ uri: item.image }} style={styles.wardrobeItemImage} />
+                      <Image 
+                        source={
+                          typeof item.image === 'string' 
+                            ? { uri: item.image }
+                            : item.image
+                        } 
+                        style={styles.wardrobeItemImage} 
+                      />
                       {item.isFavorite && (
                         <Heart style={styles.favoriteIcon} size={16} color="#FF3040" fill="#FF3040" />
                       )}
@@ -353,19 +807,23 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
               activeOpacity={0.9}
             >
               <Image
-                source={sampleAvatar.image}
+                source={
+                  avatarSettings.selectedType === 'default' 
+                    ? (modelOptions.find(model => model.id === avatarSettings.selectedId)?.image || sampleAvatar.image)
+                    : (
+                        userAvatars.find(avatar => avatar.id === avatarSettings.selectedId)?.avatar_url || 
+                        userAvatars.find(avatar => avatar.id === avatarSettings.selectedId)?.original_image_url
+                      ) 
+                      ? { uri: userAvatars.find(avatar => avatar.id === avatarSettings.selectedId)?.avatar_url || userAvatars.find(avatar => avatar.id === avatarSettings.selectedId)?.original_image_url }
+                      : sampleAvatar.image
+                }
                 style={styles.avatarImage}
                 resizeMode="contain"
               />
             </TouchableOpacity>
 
-            {/* Page Title - Positioned just above floating icons */}
-            <View style={styles.titleOverlay}>
-              <Text style={styles.pageTitle}>Changing Room</Text>
-            </View>
-
-            {/* Floating Control Icons - Top Left and Right - Only show when drawers are closed */}
-            {isLeftSidebarCollapsed && (
+            {/* Floating Control Icons - Top Left and Right - Only show when respective drawers are closed */}
+            {isLeftSidebarCollapsed && isRightSidebarCollapsed && (
               <TouchableOpacity 
                 style={[styles.floatingIcon, styles.floatingIconLeft]}
                 onPress={() => {
@@ -377,7 +835,7 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
               </TouchableOpacity>
             )}
 
-            {isRightSidebarCollapsed && (
+            {isRightSidebarCollapsed && isLeftSidebarCollapsed && (
               <TouchableOpacity 
                 style={[styles.floatingIcon, styles.floatingIconRight]}
                 onPress={() => {
@@ -385,41 +843,63 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
                   setIsLeftSidebarCollapsed(true); // Close left drawer when opening right
                 }}
               >
-                <Settings size={24} color={colors.text.primary} />
+                                  <User size={24} color={colors.text.primary} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Individual Square Floating Cards for Selected Items */}
-          <View style={styles.selectedItemsContainer}>
-            {Object.entries(currentOutfit).map(([category, item], index) => (
-              item && (
-                <View 
-                  key={category} 
-                  style={[
-                    styles.squareFloatingCard,
-                    {
-                      transform: [
-                        { rotate: `${-3 + (index % 3) * 2}deg` },
-                        { translateY: 5 + (index % 2) * 3 }
-                      ]
-                    }
-                  ]}
-                >
-                  <Image source={{ uri: item.image }} style={styles.squareItemImage} />
-                  <TouchableOpacity 
-                    style={styles.removeItemButtonSquare}
-                    onPress={() => handleRemoveItem(category)}
+          {/* Individual Square Floating Cards for Selected Items - Hide when avatar drawer is open */}
+          {isRightSidebarCollapsed && (
+            <View style={styles.selectedItemsContainer}>
+              {Object.entries(currentOutfit).map(([category, item], index) => (
+                item && (
+                  <View 
+                    key={category} 
+                    style={[
+                      styles.squareFloatingCard,
+                      {
+                        transform: [
+                          { rotate: `${-3 + (index % 3) * 2}deg` },
+                          { translateY: 5 + (index % 2) * 3 }
+                        ]
+                      }
+                    ]}
                   >
-                    <X size={14} color="#fff" />
-                  </TouchableOpacity>
-                  <View style={styles.categoryLabelContainer}>
-                    <Text style={styles.categoryLabel}>{category}</Text>
+                    <Image 
+                      source={
+                        typeof item.image === 'string' 
+                          ? { uri: item.image }
+                          : item.image
+                      } 
+                      style={styles.squareItemImage} 
+                    />
+                    <TouchableOpacity 
+                      style={styles.removeItemButtonSquare}
+                      onPress={() => handleRemoveItem(category)}
+                    >
+                      <X size={14} color="#fff" />
+                    </TouchableOpacity>
+                    <View style={styles.categoryLabelContainer}>
+                      <Text style={styles.categoryLabel}>{category}</Text>
+                    </View>
                   </View>
-                </View>
-              )
-            ))}
-          </View>
+                )
+              ))}
+            </View>
+          )}
+
+          {/* Floating Try-On Action Button - Hide when any drawer is open */}
+          {hasClothesForTryOn && !isProcessingTryOn && isRightSidebarCollapsed && isLeftSidebarCollapsed && (
+            <TouchableOpacity
+              style={styles.floatingTryOnButton}
+              onPress={handleVirtualTryOn}
+              activeOpacity={0.8}
+            >
+              <View style={styles.tryOnButtonGlow} />
+              <PlayCircle size={24} color="#fff" />
+              <Text style={styles.floatingTryOnButtonText}>Try On Now</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Right Sidebar - Avatar Settings */}
@@ -437,65 +917,271 @@ export default function VirtualChangingRoomScreen({ userHasAvatar = false }: Vir
 
             {/* Avatar Controls */}
             <ScrollView style={styles.avatarControlsContainer} showsVerticalScrollIndicator={false}>
-              <View style={styles.controlSection}>
-                <Text style={styles.controlSectionTitle}>Background</Text>
-                <View style={styles.controlButtons}>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <Palette size={20} color={colors.primary} />
-                    <Text style={styles.controlButtonText}>Studio</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <Camera size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>Custom</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.controlSection}>
-                <Text style={styles.controlSectionTitle}>Pose</Text>
-                <View style={styles.controlButtons}>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <User size={20} color={colors.primary} />
-                    <Text style={styles.controlButtonText}>Standing</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <RotateCcw size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>Turn</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
+              
+              {/* Avatar Selection */}
               <View style={styles.controlSection}>
                 <Text style={styles.controlSectionTitle}>Avatar</Text>
-                <View style={styles.controlButtons}>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <Camera size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>New Photo</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.horizontalScrollContainer}
+                  contentContainerStyle={styles.horizontalScrollContent}
+                >
+                  {/* Add/Create Avatar */}
+                  <TouchableOpacity 
+                    style={styles.avatarOptionContainer}
+                    onPress={() => setShowPhotoUpload(true)}
+                    disabled={isProcessingAvatar}
+                  >
+                    <View style={styles.addAvatarBox}>
+                      <Camera size={24} color={colors.text.secondary} />
+                      <Text style={styles.addAvatarText}>Add</Text>
+                    </View>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <Settings size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>Edit</Text>
+                  
+                  {/* Processing Avatar - Show when creating new avatar */}
+                  {isProcessingAvatar && (
+                    <View style={[styles.avatarOptionContainer, styles.processingAvatarContainer]}>
+                      <View style={styles.processingAvatarBox}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={styles.processingAvatarText}>Creating...</Text>
+                        <View style={styles.progressBarFinal}>
+                          <View 
+                            style={[
+                              styles.progressFillFinal, 
+                              { width: `${avatarProcessingProgress}%` }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={styles.progressTextFinal}>{avatarProcessingProgress}%</Text>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* User's Created Avatars */}
+                  {userAvatars.map((avatar, index) => (
+                    <TouchableOpacity 
+                      key={avatar.id}
+                      style={[
+                        styles.avatarOptionContainer, 
+                        avatarSettings.selectedType === 'user' && avatarSettings.selectedId === avatar.id && styles.selectedAvatarContainer
+                      ]}
+                      onPress={() => {
+                        setAvatarSettings({ selectedId: avatar.id, selectedType: 'user' });
+                        console.log('Selected user avatar:', avatar.id);
+                      }}
+                    >
+                      <Image 
+                        source={{ uri: avatar.avatar_url || avatar.original_image_url }}
+                        style={styles.avatarOptionImage}
+                        resizeMode="cover"
+                      />
+                      {avatarSettings.selectedType === 'user' && avatarSettings.selectedId === avatar.id && (
+                        <View style={styles.primaryAvatarBadge}>
+                          <Text style={styles.primaryAvatarBadgeText}>Selected</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  
+                  {/* Show current sample avatar if no user avatars exist */}
+                  {userAvatars.length === 0 && (
+                    <TouchableOpacity style={[styles.avatarOptionContainer, styles.selectedAvatarContainer]}>
+                      <Image 
+                        source={sampleAvatar.image} 
+                        style={styles.avatarOptionImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Placeholder for additional avatars */}
+                  <TouchableOpacity style={styles.avatarOptionContainer}>
+                    <View style={styles.placeholderAvatarBox}>
+                      <User size={20} color={colors.text.secondary} />
+                    </View>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               </View>
 
+
+              {/* Models Controls */}
               <View style={styles.controlSection}>
-                <Text style={styles.controlSectionTitle}>Zoom & View</Text>
-                <View style={styles.controlButtons}>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <ZoomIn size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>Zoom In</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.controlButton}>
-                    <ZoomOut size={20} color={colors.text.secondary} />
-                    <Text style={styles.controlButtonText}>Zoom Out</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.controlSectionTitle}>Default Models ({modelOptions.length})</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.horizontalScrollContainer}
+                  contentContainerStyle={styles.horizontalScrollContent}
+                >
+                  {modelOptions.map((model) => (
+                    <TouchableOpacity
+                      key={model.id}
+                      style={[
+                        styles.modelOptionContainer,
+                        avatarSettings.selectedType === 'default' && avatarSettings.selectedId === model.id && styles.selectedModelContainer
+                      ]}
+                      onPress={() => setAvatarSettings({ selectedId: model.id, selectedType: 'default' })}
+                    >
+                      <View style={[
+                        styles.modelImageContainer,
+                        avatarSettings.selectedType === 'default' && avatarSettings.selectedId === model.id && styles.selectedModelImageContainer
+                      ]}>
+                        <Image 
+                          source={model.image} 
+                          style={styles.modelImage}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             </ScrollView>
           </View>
         )}
       </View>
+
+      {/* Virtual Try-On Processing Overlay with Enhanced Progress */}
+      {isProcessingTryOn && (
+        <Modal visible={isProcessingTryOn} transparent animationType="fade">
+          <View style={styles.processingOverlay}>
+            <View style={styles.processingCard}>
+              <ActivityIndicator size="large" color={colors.primary} style={styles.processingSpinner} />
+              
+              {/* Progress Bar */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBarBackground}>
+                  <View style={[styles.progressBarFill, { width: `${tryOnProgress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{tryOnProgress}%</Text>
+              </View>
+              
+              <Text style={styles.processingTitle}>
+                {tryOnStep === 'validating_avatar' && 'Validating Avatar...'}
+                {tryOnStep === 'processing_image' && 'Processing Try-On...'}
+                {tryOnStep === 'generating_video' && 'Creating Video...'}
+                {tryOnStep === 'finalizing' && 'Finalizing...'}
+                {tryOnStep === 'complete' && 'Almost Ready!'}
+              </Text>
+              <Text style={styles.processingText}>
+                {tryOnStep === 'validating_avatar' && 'Preparing your avatar for the try-on session'}
+                {tryOnStep === 'processing_image' && 'Analyzing your outfit and fitting it to your avatar'}
+                {tryOnStep === 'generating_video' && 'Generating a beautiful video showcase of your look'}
+                {tryOnStep === 'finalizing' && 'Adding final touches and saving your results'}
+                {tryOnStep === 'complete' && 'Your virtual try-on is complete!'}
+              </Text>
+              
+              {/* Current Step Indicator */}
+              {tryOnCurrentStep && (
+                <Text style={styles.stepIndicator}>
+                  Step: {tryOnCurrentStep.replace(/_/g, ' ').toLowerCase()}
+                </Text>
+              )}
+              
+              {/* Show selected items being processed */}
+              <View style={styles.processingItemsContainer}>
+                {Object.entries(currentOutfit).map(([category, item]) => (
+                  item && (
+                    <View key={category} style={styles.processingItem}>
+                      <Image 
+                        source={
+                          typeof item.image === 'string' 
+                            ? { uri: item.image }
+                            : item.image
+                        } 
+                        style={styles.processingItemImage} 
+                      />
+                    </View>
+                  )
+                ))}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Try-On Results Modal */}
+      {tryOnResults && (
+        <Modal visible={!!tryOnResults} transparent animationType="slide">
+          <View style={styles.resultsOverlay}>
+            <View style={styles.resultsContainer}>
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsTitle}>Your Try-On Result</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={() => {
+                    setTryOnResults(null);
+                    setTryOnStep('idle');
+                  }}
+                >
+                  <X size={24} color={colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.resultsContent} showsVerticalScrollIndicator={false}>
+                {/* Result Image */}
+                {console.log('🖼️ Try-on results:', tryOnResults)}
+                {tryOnResults?.resultImageUrl ? (
+                  <View style={styles.resultImageContainer}>
+                    <Image 
+                      source={{ uri: tryOnResults.resultImageUrl }} 
+                      style={styles.resultImage}
+                      resizeMode="contain"
+                      onError={(error) => console.log('❌ Image load error:', error)}
+                      onLoad={() => console.log('✅ Image loaded successfully')}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.resultImageContainer}>
+                    <Text style={{ textAlign: 'center', color: 'gray' }}>
+                      No image URL found in results
+                    </Text>
+                    <Text style={{ fontSize: 10, color: 'gray', marginTop: 5 }}>
+                      Results: {JSON.stringify(tryOnResults)}
+                    </Text>
+                  </View>
+                )}
+                
+                <Text style={styles.resultsDescription}>
+                  How does this outfit look on you?
+                </Text>
+                
+                {/* Action buttons */}
+                <View style={styles.resultsActions}>
+                  <TouchableOpacity style={styles.resultActionButton}>
+                    <Save size={20} color={colors.primary} />
+                    <Text style={styles.resultActionText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.resultActionButton}>
+                    <Share size={20} color={colors.primary} />
+                    <Text style={styles.resultActionText}>Share</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.resultActionButton}>
+                    <Bookmark size={20} color={colors.primary} />
+                    <Text style={styles.resultActionText}>Add to Wardrobe</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.tryAnotherButton}
+                  onPress={() => {
+                    setTryOnResults(null);
+                    setTryOnStep('idle');
+                  }}
+                >
+                  <Text style={styles.tryAnotherButtonText}>Try Another Outfit</Text>
+                </TouchableOpacity>
+                
+                {/* Bottom padding for safe scrolling */}
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+
     </SafeAreaView>
   );
 }
@@ -660,7 +1346,7 @@ const styles = StyleSheet.create({
   wardrobeItemImage: {
     width: '100%',
     height: '100%',
-  },
+  } as ImageStyle,
   
   favoriteIcon: {
     position: 'absolute',
@@ -726,7 +1412,6 @@ const styles = StyleSheet.create({
     width: '90%',
     height: '85%',
     borderRadius: 60, // Very dramatic rounded corners - almost pill-shaped
-    overflow: 'hidden', // Ensure corners are clipped
   },
   
   // Floating Control Icons
@@ -1229,20 +1914,658 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-        // Page Title Overlay Styles
-   titleOverlay: {
-     position: 'absolute',
-     top: -40,
-     left: 0,
-     right: 0,
-     alignItems: 'center',
-     zIndex: 5,
-   },
-   
-   pageTitle: {
-     fontSize: 18,
-     fontWeight: '600',
-     color: colors.text.primary,
-     textAlign: 'center',
-   },
+  // Page Title Overlay Styles
+  titleOverlay: {
+    position: 'absolute',
+    top: -40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  
+  pageTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+
+  // Processing Styles
+  processingContainer: {
+    padding: 20,
+  },
+  
+  processingSpinner: {
+    marginBottom: 16,
+  },
+
+  progressContainer: {
+    width: '100%',
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+
+  progressBarBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: colors.background.secondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
+  stepIndicator: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  
+  processingTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  
+  processingText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  
+  progressContainer: {
+    marginBottom: 16,
+  },
+  
+  progressBar: {
+    height: 16,
+    backgroundColor: colors.background.off,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+  },
+  
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  
+  processingPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 16,
+  } as ImageStyle,
+  
+  successIcon: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  
+  avatarPromptButtonOutline: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  
+  avatarPromptButtonTextOutline: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  floatingCloseButton: {
+    position: 'absolute',
+    top: -12,
+    right: -12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 8,
+    zIndex: 10,
+  },
+
+  photoOptionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+
+  photoOptionCard: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    minHeight: 120,
+  },
+
+  cameraCard: {
+    backgroundColor: colors.primary,
+  },
+
+  galleryCard: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+
+  photoOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  galleryIcon: {
+    backgroundColor: colors.primary,
+  },
+
+  photoOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+
+  galleryTitle: {
+    color: colors.primary,
+  },
+
+  photoOptionSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+
+  gallerySubtitle: {
+    color: colors.textSecondary,
+  },
+
+  // Pose Grid Styles
+  poseGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  
+  poseButton: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.background.off,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  
+  selectedPoseButton: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  
+  poseEmoji: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  
+  poseButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  
+  selectedPoseText: {
+    color: '#fff',
+  },
+
+  // Selected Control Button Styles
+  selectedControlButton: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  
+  selectedControlButtonText: {
+    color: '#fff',
+  },
+
+  // Floating Try-On Button - Centered
+  floatingTryOnButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -75 }, { translateY: -25 }], // Approximate centering adjustment
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 25,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+  },
+  
+  floatingTryOnButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  // Processing Overlay Styles
+  processingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  
+  processingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    minWidth: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  
+  processingItemsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+  },
+  
+  processingItem: {
+    alignItems: 'center',
+  },
+  
+  processingItemImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+
+  // Results Modal Styles
+  resultsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  
+  resultsContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    flex: 1,
+  },
+  
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.light,
+  },
+  
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  
+  closeButton: {
+    padding: 8,
+  },
+  
+  resultsContent: {
+    padding: 20,
+  },
+  
+  resultImageContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: colors.background.off,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  
+  resultImage: {
+    width: '100%',
+    height: 400,
+    backgroundColor: colors.background.off,
+  },
+  
+  resultsDescription: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  
+  resultsActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 24,
+  },
+  
+  resultActionButton: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  
+  resultActionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.primary,
+  },
+  
+  tryAnotherButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  
+  tryAnotherButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // New Horizontal Scrolling Styles
+  horizontalScrollContainer: {
+    marginTop: 8,
+  },
+  
+  horizontalScrollContent: {
+    paddingHorizontal: 8,
+    gap: 12,
+  },
+
+  // Avatar Option Styles
+  avatarOptionContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    overflow: 'hidden',
+  },
+  
+  selectedAvatarContainer: {
+    borderColor: colors.primary,
+    borderWidth: 3,
+  },
+  
+  avatarOptionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  
+  addAvatarBox: {
+    flex: 1,
+    backgroundColor: colors.background.off,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  
+  addAvatarText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.text.secondary,
+  },
+  
+  placeholderAvatarBox: {
+    flex: 1,
+    backgroundColor: colors.background.off,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  primaryAvatarBadge: {
+    position: 'absolute',
+    bottom: 2,
+    left: 2,
+    right: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 4,
+  },
+
+  primaryAvatarBadgeText: {
+    fontSize: 8,
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  // Pose Option Styles
+  poseOptionContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  
+  selectedPoseContainer: {
+    borderColor: colors.primary,
+    borderWidth: 3,
+  },
+  
+  poseOptionImage: {
+    width: '100%',
+    height: 60,
+  },
+  
+  poseIconContainer: {
+    flex: 1,
+    backgroundColor: colors.background.off,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: 60,
+  },
+  
+  poseOptionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.text.secondary,
+    textAlign: 'center',
+    paddingVertical: 4,
+    backgroundColor: '#fff',
+    width: '100%',
+  },
+
+  // Background Option Styles
+  backgroundOptionContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  selectedBackgroundContainer: {
+    borderColor: colors.primary,
+    borderWidth: 3,
+  },
+  
+  backgroundIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: colors.background.off,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  
+  selectedBackgroundIcon: {
+    backgroundColor: colors.primary,
+  },
+  
+  backgroundOptionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  
+  selectedBackgroundText: {
+    color: colors.primary,
+  },
+
+  // Model Option Styles
+  modelOptionContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  
+  selectedModelContainer: {
+    borderColor: colors.primary,
+    borderWidth: 3,
+  },
+  
+  modelImageContainer: {
+    width: '100%',
+    height: 60,
+    overflow: 'hidden',
+  },
+  
+  selectedModelImageContainer: {
+    // Additional styling for selected state if needed
+  },
+  
+  modelImage: {
+    width: '100%',
+    height: '100%',
+  },
+  
+  modelOptionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.text.secondary,
+    textAlign: 'center',
+    paddingVertical: 4,
+    backgroundColor: '#fff',
+    width: '100%',
+  },
+  
+  selectedModelText: {
+    color: colors.primary,
+  },
+
+  modelInfoContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+
+  modelDescriptionText: {
+    fontSize: 8,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+
+  selectedModelDescriptionText: {
+    color: colors.primary,
+  },
+
+  // Processing Avatar Styles
+  processingAvatarContainer: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  
+  processingAvatarBox: {
+    flex: 1,
+    backgroundColor: `${colors.primary}10`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  
+  processingAvatarText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.primary,
+  },
+  
+  // Final unified progress styles
+  progressBarFinal: {
+    width: '80%',
+    height: 4,
+    backgroundColor: colors.border.light,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  
+  progressFillFinal: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  
+  progressTextFinal: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+  },
 });

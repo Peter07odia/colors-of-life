@@ -1,0 +1,434 @@
+{
+  "meta": {
+    "instanceId": "colors-of-life-ai-stylist-v1.0"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "path": "ai-stylist",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "stylist-webhook",
+      "name": "AI Stylist Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        200
+      ],
+      "notes": "**AI STYLIST WEBHOOK TRIGGER**\n\nPurpose: Receives chat messages and styling requests from mobile app\n\nSetup Steps:\n1. Path: 'ai-stylist' (creates /webhook/ai-stylist endpoint)\n2. Method: POST for receiving chat data\n3. Response Mode: 'responseNode' for controlled responses\n4. Raw Body: true for JSON parsing\n\nExpected Input:\n{\n  \"message\": \"I need a casual outfit for a weekend brunch\",\n  \"userId\": \"user-123\",\n  \"conversationId\": \"conv-456\",\n  \"context\": {\n    \"occasion\": \"brunch\",\n    \"style\": \"casual\",\n    \"weather\": \"sunny\",\n    \"budget\": 200\n  },\n  \"userProfile\": {\n    \"preferredColors\": [\"blue\", \"white\"],\n    \"stylePreferences\": [\"minimalist\", \"casual\"],\n    \"sizes\": { \"top\": \"M\", \"bottom\": \"L\" }\n  }\n}\n\nConnections:\n- Success: Message Validator\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// **MESSAGE VALIDATOR AND PROCESSOR**\n// Validates input, extracts conversation context, and prepares for AI processing\n\nconst inputData = $json.body || $json;\n\n// Validate required fields\nif (!inputData.message || typeof inputData.message !== 'string') {\n  throw new Error('Message is required and must be a string');\n}\n\n// Extract and validate parameters\nconst message = inputData.message.trim();\nconst userId = inputData.userId || 'anonymous';\nconst conversationId = inputData.conversationId || `conv-${Date.now()}`;\n\n// Process context\nconst context = inputData.context || {};\nconst occasion = context.occasion || 'everyday';\nconst style = context.style || 'casual';\nconst weather = context.weather || 'mild';\nconst budget = context.budget || 100;\n\n// Process user profile\nconst userProfile = inputData.userProfile || {};\nconst preferredColors = userProfile.preferredColors || [];\nconst stylePreferences = userProfile.stylePreferences || [];\nconst sizes = userProfile.sizes || {};\n\n// Detect intent from message\nconst intentKeywords = {\n  outfit_request: ['outfit', 'what to wear', 'clothing', 'dress', 'style'],\n  color_advice: ['color', 'colors', 'match', 'coordinate'],\n  occasion_styling: ['wedding', 'party', 'work', 'casual', 'formal', 'date'],\n  shopping_help: ['buy', 'purchase', 'shop', 'find', 'where'],\n  style_advice: ['style', 'look', 'fashion', 'trend', 'trendy'],\n  size_help: ['size', 'fit', 'fitting', 'measurements']\n};\n\nconst detectedIntent = Object.keys(intentKeywords).find(intent => \n  intentKeywords[intent].some(keyword => \n    message.toLowerCase().includes(keyword.toLowerCase())\n  )\n) || 'general_chat';\n\n// Extract fashion keywords\nconst fashionKeywords = {\n  categories: ['dress', 'top', 'shirt', 'pant', 'jeans', 'jacket', 'coat', 'shoe', 'bag', 'accessory'],\n  colors: ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'black', 'white', 'gray', 'brown'],\n  styles: ['casual', 'formal', 'business', 'vintage', 'modern', 'bohemian', 'minimalist', 'streetwear', 'elegant'],\n  occasions: ['work', 'party', 'wedding', 'date', 'casual', 'formal', 'beach', 'travel', 'brunch', 'dinner']\n};\n\nconst extractedKeywords = {};\nObject.keys(fashionKeywords).forEach(category => {\n  extractedKeywords[category] = fashionKeywords[category].filter(keyword => \n    message.toLowerCase().includes(keyword.toLowerCase())\n  );\n});\n\n// Create stylist context\nconst stylistContext = {\n  message: message,\n  userId: userId,\n  conversationId: conversationId,\n  detectedIntent: detectedIntent,\n  extractedKeywords: extractedKeywords,\n  context: {\n    occasion: occasion,\n    style: style,\n    weather: weather,\n    budget: budget\n  },\n  userProfile: {\n    preferredColors: preferredColors,\n    stylePreferences: stylePreferences,\n    sizes: sizes\n  },\n  timestamp: new Date().toISOString(),\n  requestId: `stylist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`\n};\n\nreturn [{\n  json: stylistContext\n}];"
+      },
+      "id": "message-validator",
+      "name": "Message Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        200
+      ],
+      "notes": "**MESSAGE VALIDATOR AND PROCESSOR**\n\nPurpose: Validates input, extracts conversation context, and prepares for AI processing\n\nSetup Steps:\n1. Language: JavaScript\n2. Mode: Run Once for All Items\n3. Input: Raw webhook data\n4. Output: Structured stylist context\n\nProcessing:\n- Validates required fields\n- Extracts message and user data\n- Detects intent from message keywords\n- Extracts fashion keywords (categories, colors, styles, occasions)\n- Creates structured context for AI agent\n- Generates unique request ID\n\nIntent Detection:\n- outfit_request: Outfit recommendations\n- color_advice: Color coordination\n- occasion_styling: Event-specific styling\n- shopping_help: Shopping assistance\n- style_advice: General fashion advice\n- size_help: Sizing and fit guidance\n- general_chat: General conversation\n\nKeyword Extraction:\n- categories: Clothing categories\n- colors: Color preferences\n- styles: Style preferences\n- occasions: Event types\n\nOutput:\n- message: User's message\n- userId: User identifier\n- conversationId: Conversation ID\n- detectedIntent: AI-detected intent\n- extractedKeywords: Fashion keywords\n- context: Styling context\n- userProfile: User preferences\n- timestamp: Request timestamp\n- requestId: Unique request ID\n\nConnections:\n- Success: User Profile Fetcher\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "tableId": "profiles",
+        "select": "id, style_preferences, favorite_colors, body_type, size_preferences, fashion_style, created_at",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.userId }}"
+            }
+          ]
+        }
+      },
+      "id": "user-profile-fetcher",
+      "name": "User Profile Fetcher",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        500,
+        100
+      ],
+      "notes": "**USER PROFILE FETCHER**\n\nPurpose: Fetches user profile data for personalized styling\n\nSetup Steps:\n1. Resource: Row\n2. Operation: Get\n3. Table: profiles\n4. Select: All styling-relevant fields\n5. Filter: By user ID\n\nProfile Data:\n- id: User identifier\n- style_preferences: User's preferred styles\n- favorite_colors: User's favorite colors\n- body_type: User's body type\n- size_preferences: User's size preferences\n- fashion_style: User's overall fashion style\n- created_at: Profile creation date\n\nPersonalization:\n- Color recommendations based on favorites\n- Style suggestions based on preferences\n- Size-appropriate recommendations\n- Body type considerations\n- Fashion style alignment\n\nCredentials Required:\n- Supabase API credentials\n- Same as database search\n\nConnections:\n- Success: Conversation History Fetcher\n- Error: Continue with default profile"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "ai_chat_sessions",
+        "select": "id, user_id, conversation_id, message, response, intent, created_at",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "conversation_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.conversationId }}"
+            }
+          ]
+        },
+        "sort": {
+          "sortingProperties": [
+            {
+              "keyName": "created_at",
+              "sortDirection": "desc"
+            }
+          ]
+        },
+        "limit": 10
+      },
+      "id": "conversation-history",
+      "name": "Conversation History",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        500,
+        200
+      ],
+      "notes": "**CONVERSATION HISTORY FETCHER**\n\nPurpose: Fetches recent conversation history for context\n\nSetup Steps:\n1. Resource: Row\n2. Operation: Get Many\n3. Table: ai_chat_sessions\n4. Select: All conversation fields\n5. Filter: By conversation ID\n6. Sort: By created_at descending\n7. Limit: 10 recent messages\n\nConversation Data:\n- id: Session identifier\n- user_id: User identifier\n- conversation_id: Conversation identifier\n- message: User's message\n- response: AI's response\n- intent: Detected intent\n- created_at: Message timestamp\n\nContext Building:\n- Previous styling requests\n- User preferences mentioned\n- Conversation flow\n- Recent recommendations\n- Feedback patterns\n\nCredentials Required:\n- Supabase API credentials\n- Same as database search\n\nConnections:\n- Success: Fashion Data Fetcher\n- Error: Continue with empty history"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "fashion_items",
+        "select": "id, name, brand, price, image_url, category, colors, style_attributes, tags",
+        "filterType": "manual",
+        "matchType": "anyFilter",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "category",
+              "condition": "in",
+              "keyValue": "={{ '(' + $json.extractedKeywords.categories.map(c => '\"' + c + '\"').join(',') + ')' }}"
+            },
+            {
+              "keyName": "colors",
+              "condition": "cs",
+              "keyValue": "={{ '{\"' + $json.extractedKeywords.colors.join('\", \"') + '\"}' }}"
+            },
+            {
+              "keyName": "style_attributes",
+              "condition": "cs",
+              "keyValue": "={{ '{\"' + $json.extractedKeywords.styles.join('\", \"') + '\"}' }}"
+            }
+          ]
+        },
+        "sort": {
+          "sortingProperties": [
+            {
+              "keyName": "created_at",
+              "sortDirection": "desc"
+            }
+          ]
+        },
+        "limit": 20
+      },
+      "id": "fashion-data-fetcher",
+      "name": "Fashion Data Fetcher",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "notes": "**FASHION DATA FETCHER**\n\nPurpose: Fetches relevant fashion items for styling recommendations\n\nSetup Steps:\n1. Resource: Row\n2. Operation: Get Many\n3. Table: fashion_items\n4. Select: All relevant fields\n5. Filter: By extracted keywords\n6. Sort: By created_at descending\n7. Limit: 20 recent items\n\nFashion Data:\n- id: Item identifier\n- name: Item name\n- brand: Brand name\n- price: Item price\n- image_url: Item image\n- category: Item category\n- colors: Available colors\n- style_attributes: Style tags\n- tags: General tags\n\nFiltering Logic:\n- Category match: Items in mentioned categories\n- Color match: Items with mentioned colors\n- Style match: Items with mentioned styles\n- Uses OR logic for broader results\n- Recent items prioritized\n\nCredentials Required:\n- Supabase API credentials\n- Same as database search\n\nConnections:\n- Success: Context Combiner\n- Error: Continue with empty fashion data"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// **CONTEXT COMBINER**\n// Combines all fetched data into comprehensive context for AI agent\n\nconst stylistContext = $('Message Validator').first().json;\nconst userProfile = $('User Profile Fetcher').first()?.json || {};\nconst conversationHistory = $('Conversation History').all().map(item => item.json);\nconst fashionData = $('Fashion Data Fetcher').all().map(item => item.json);\n\n// Build conversation context\nconst recentConversations = conversationHistory.slice(0, 5).map(conv => ({\n  message: conv.message,\n  response: conv.response,\n  intent: conv.intent,\n  timestamp: conv.created_at\n}));\n\n// Build fashion context\nconst availableItems = fashionData.map(item => ({\n  id: item.id,\n  name: item.name,\n  brand: item.brand,\n  price: item.price,\n  image: item.image_url,\n  category: item.category,\n  colors: item.colors || [],\n  styles: item.style_attributes || [],\n  tags: item.tags || []\n}));\n\n// Build user context\nconst userContext = {\n  userId: stylistContext.userId,\n  profile: {\n    stylePreferences: userProfile.style_preferences || stylistContext.userProfile.stylePreferences,\n    favoriteColors: userProfile.favorite_colors || stylistContext.userProfile.preferredColors,\n    bodyType: userProfile.body_type || 'average',\n    sizePreferences: userProfile.size_preferences || stylistContext.userProfile.sizes,\n    fashionStyle: userProfile.fashion_style || 'casual'\n  },\n  conversationHistory: recentConversations,\n  currentRequest: {\n    message: stylistContext.message,\n    intent: stylistContext.detectedIntent,\n    extractedKeywords: stylistContext.extractedKeywords,\n    context: stylistContext.context\n  }\n};\n\n// Build AI agent prompt\nconst aiPrompt = `You are a professional AI fashion stylist for Colors of Life, a fashion app. Your expertise includes:\n- Personal styling and outfit coordination\n- Color theory and matching\n- Fashion trends and seasonal styling\n- Body type considerations\n- Occasion-appropriate dressing\n- Budget-conscious recommendations\n\nUser Context:\n- User ID: ${userContext.userId}\n- Preferred Colors: ${userContext.profile.favoriteColors.join(', ')}\n- Style Preferences: ${userContext.profile.stylePreferences.join(', ')}\n- Body Type: ${userContext.profile.bodyType}\n- Fashion Style: ${userContext.profile.fashionStyle}\n\nCurrent Request:\n- Message: \"${userContext.currentRequest.message}\"\n- Intent: ${userContext.currentRequest.intent}\n- Occasion: ${userContext.currentRequest.context.occasion}\n- Weather: ${userContext.currentRequest.context.weather}\n- Budget: $${userContext.currentRequest.context.budget}\n- Detected Keywords: ${JSON.stringify(userContext.currentRequest.extractedKeywords)}\n\nAvailable Fashion Items: ${JSON.stringify(availableItems)}\n\nRecent Conversation:\n${recentConversations.map(conv => `User: ${conv.message}\\nStylest: ${conv.response}`).join('\\n\\n')}\n\nPlease provide a helpful, personalized styling response that:\n1. Addresses the user's specific request\n2. Considers their personal style and preferences\n3. Includes specific item recommendations when appropriate\n4. Provides styling tips and advice\n5. Maintains a friendly, professional tone\n\nResponse should be conversational and helpful, as if talking to a friend.`;\n\n// Create comprehensive context for AI agent\nconst aiContext = {\n  ...stylistContext,\n  userProfile: userContext.profile,\n  conversationHistory: recentConversations,\n  availableItems: availableItems,\n  aiPrompt: aiPrompt,\n  // For AI agent node\n  chatInput: aiPrompt\n};\n\nreturn [{\n  json: aiContext\n}];"
+      },
+      "id": "context-combiner",
+      "name": "Context Combiner",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        200
+      ],
+      "notes": "**CONTEXT COMBINER**\n\nPurpose: Combines all fetched data into comprehensive context for AI agent\n\nSetup Steps:\n1. Language: JavaScript\n2. Mode: Run Once for All Items\n3. Input: All fetched data sources\n4. Output: Comprehensive AI context\n\nData Integration:\n- Stylist context: Original request data\n- User profile: Personal preferences and style\n- Conversation history: Recent chat context\n- Fashion data: Available items for recommendations\n\nAI Prompt Building:\n- Professional stylist persona\n- User's personal context\n- Current request details\n- Available fashion items\n- Recent conversation history\n- Styling guidelines\n\nContext Structure:\n- User profile with preferences\n- Recent conversation history\n- Available fashion items\n- Comprehensive AI prompt\n- Chat input for AI agent\n\nPersonalization:\n- Style preferences integration\n- Color preferences consideration\n- Body type considerations\n- Size preferences\n- Fashion style alignment\n\nConnections:\n- Success: AI Fashion Agent\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.aiPrompt }}",
+        "hasOutputParser": false
+      },
+      "id": "ai-fashion-agent",
+      "name": "AI Fashion Agent",
+      "type": "n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ],
+      "notes": "**AI FASHION AGENT**\n\nPurpose: AI agent that provides personalized fashion styling advice\n\nSetup Steps:\n1. Prompt Type: Define below\n2. Text: Comprehensive AI prompt from context\n3. Output Parser: False (natural language response)\n4. Connect LLM: OpenAI GPT-4 or similar\n5. Connect Tools: Fashion search, style analysis tools\n\nAgent Capabilities:\n- Personal styling recommendations\n- Color coordination advice\n- Occasion-appropriate dressing\n- Fashion trend insights\n- Shopping recommendations\n- Style troubleshooting\n\nAgent Persona:\n- Professional fashion stylist\n- Friendly and approachable\n- Knowledgeable about trends\n- Considers user preferences\n- Budget-conscious\n- Body-positive\n\nTools Available:\n- Fashion search tool\n- Style analysis tool\n- Color matching tool\n- Trend analysis tool\n- Shopping assistance tool\n\nCredentials Required:\n- OpenAI API key (for LLM)\n- Configure in n8n credentials\n\nExpected Output:\n- Conversational styling advice\n- Item recommendations\n- Styling tips\n- Color coordination\n- Shopping suggestions\n\nConnections:\n- Success: Response Processor\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// **RESPONSE PROCESSOR**\n// Processes AI agent response and prepares for storage and client response\n\nconst aiContext = $('Context Combiner').first().json;\nconst aiResponse = $('AI Fashion Agent').first().json;\n\n// Extract AI response\nconst aiMessage = aiResponse.output || aiResponse.text || aiResponse.message || 'I apologize, but I encountered an issue processing your request. Please try again.';\n\n// Parse AI response for structured data\nconst responseAnalysis = {\n  message: aiMessage,\n  intent: aiContext.detectedIntent,\n  recommendations: extractRecommendations(aiMessage, aiContext.availableItems),\n  stylingTips: extractStylingTips(aiMessage),\n  colors: extractColorMentions(aiMessage),\n  categories: extractCategoryMentions(aiMessage),\n  confidence: calculateConfidence(aiMessage, aiContext)\n};\n\n// Helper functions\nfunction extractRecommendations(message, items) {\n  const recommendations = [];\n  \n  // Look for item mentions in the message\n  items.forEach(item => {\n    if (message.toLowerCase().includes(item.name.toLowerCase()) || \n        message.toLowerCase().includes(item.brand.toLowerCase())) {\n      recommendations.push({\n        id: item.id,\n        name: item.name,\n        brand: item.brand,\n        price: item.price,\n        image: item.image,\n        category: item.category,\n        reason: 'AI recommended based on your request'\n      });\n    }\n  });\n  \n  return recommendations;\n}\n\nfunction extractStylingTips(message) {\n  const tips = [];\n  const sentences = message.split('.');\n  \n  sentences.forEach(sentence => {\n    if (sentence.toLowerCase().includes('tip') || \n        sentence.toLowerCase().includes('suggestion') ||\n        sentence.toLowerCase().includes('consider') ||\n        sentence.toLowerCase().includes('try')) {\n      tips.push(sentence.trim());\n    }\n  });\n  \n  return tips;\n}\n\nfunction extractColorMentions(message) {\n  const colors = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'black', 'white', 'gray', 'brown', 'beige', 'navy', 'teal'];\n  const lowerMessage = message.toLowerCase();\n  return colors.filter(color => lowerMessage.includes(color));\n}\n\nfunction extractCategoryMentions(message) {\n  const categories = ['dress', 'top', 'shirt', 'pant', 'jean', 'jacket', 'coat', 'shoe', 'bag', 'accessory'];\n  const lowerMessage = message.toLowerCase();\n  return categories.filter(category => lowerMessage.includes(category));\n}\n\nfunction calculateConfidence(message, context) {\n  let confidence = 0.5; // Base confidence\n  \n  // Higher confidence if specific recommendations are made\n  if (context.availableItems.length > 0) confidence += 0.2;\n  \n  // Higher confidence if user profile is available\n  if (context.userProfile.stylePreferences.length > 0) confidence += 0.1;\n  \n  // Higher confidence if conversation history exists\n  if (context.conversationHistory.length > 0) confidence += 0.1;\n  \n  // Higher confidence if message is detailed\n  if (message.length > 200) confidence += 0.1;\n  \n  return Math.min(confidence, 1.0);\n}\n\n// Create response for storage\nconst chatSession = {\n  userId: aiContext.userId,\n  conversationId: aiContext.conversationId,\n  message: aiContext.message,\n  response: aiMessage,\n  intent: aiContext.detectedIntent,\n  recommendations: responseAnalysis.recommendations,\n  stylingTips: responseAnalysis.stylingTips,\n  extractedKeywords: aiContext.extractedKeywords,\n  context: aiContext.context,\n  confidence: responseAnalysis.confidence,\n  requestId: aiContext.requestId,\n  timestamp: new Date().toISOString()\n};\n\n// Create response for client\nconst clientResponse = {\n  success: true,\n  data: {\n    response: aiMessage,\n    intent: aiContext.detectedIntent,\n    recommendations: responseAnalysis.recommendations,\n    stylingTips: responseAnalysis.stylingTips,\n    suggestedColors: responseAnalysis.colors,\n    suggestedCategories: responseAnalysis.categories,\n    confidence: responseAnalysis.confidence,\n    conversationId: aiContext.conversationId,\n    requestId: aiContext.requestId,\n    timestamp: new Date().toISOString()\n  },\n  meta: {\n    processingTime: new Date().toISOString(),\n    userProfile: aiContext.userProfile,\n    availableItems: aiContext.availableItems.length\n  }\n};\n\nreturn [{\n  json: {\n    chatSession: chatSession,\n    clientResponse: clientResponse\n  }\n}];"
+      },
+      "id": "response-processor",
+      "name": "Response Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "notes": "**RESPONSE PROCESSOR**\n\nPurpose: Processes AI agent response and prepares for storage and client response\n\nSetup Steps:\n1. Language: JavaScript\n2. Mode: Run Once for All Items\n3. Input: AI agent response and context\n4. Output: Structured response data\n\nResponse Processing:\n- Extracts AI message from response\n- Analyzes response for recommendations\n- Extracts styling tips\n- Identifies color/category mentions\n- Calculates confidence score\n- Prepares data for storage\n- Formats response for client\n\nData Extraction:\n- Item recommendations from available items\n- Styling tips from AI advice\n- Color mentions in response\n- Category mentions in response\n- Confidence based on context quality\n\nResponse Structure:\n- chatSession: Data for database storage\n- clientResponse: Data for mobile app\n\nConfidence Calculation:\n- Base confidence: 0.5\n- Available items: +0.2\n- User profile: +0.1\n- Conversation history: +0.1\n- Detailed message: +0.1\n- Max confidence: 1.0\n\nConnections:\n- Success: Session Storage\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "ai_chat_sessions",
+        "columns": {
+          "columnValues": [
+            {
+              "column": "user_id",
+              "value": "={{ $json.chatSession.userId }}"
+            },
+            {
+              "column": "conversation_id",
+              "value": "={{ $json.chatSession.conversationId }}"
+            },
+            {
+              "column": "message",
+              "value": "={{ $json.chatSession.message }}"
+            },
+            {
+              "column": "response",
+              "value": "={{ $json.chatSession.response }}"
+            },
+            {
+              "column": "intent",
+              "value": "={{ $json.chatSession.intent }}"
+            },
+            {
+              "column": "recommendations",
+              "value": "={{ JSON.stringify($json.chatSession.recommendations) }}"
+            },
+            {
+              "column": "styling_tips",
+              "value": "={{ JSON.stringify($json.chatSession.stylingTips) }}"
+            },
+            {
+              "column": "extracted_keywords",
+              "value": "={{ JSON.stringify($json.chatSession.extractedKeywords) }}"
+            },
+            {
+              "column": "context",
+              "value": "={{ JSON.stringify($json.chatSession.context) }}"
+            },
+            {
+              "column": "confidence",
+              "value": "={{ $json.chatSession.confidence }}"
+            },
+            {
+              "column": "request_id",
+              "value": "={{ $json.chatSession.requestId }}"
+            }
+          ]
+        }
+      },
+      "id": "session-storage",
+      "name": "Session Storage",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        200
+      ],
+      "notes": "**SESSION STORAGE**\n\nPurpose: Stores chat session data for conversation history and analytics\n\nSetup Steps:\n1. Resource: Row\n2. Operation: Create\n3. Table: ai_chat_sessions\n4. Columns: All session data\n\nStored Data:\n- user_id: User identifier\n- conversation_id: Conversation identifier\n- message: User's message\n- response: AI's response\n- intent: Detected intent\n- recommendations: Item recommendations\n- styling_tips: Styling advice\n- extracted_keywords: Fashion keywords\n- context: Request context\n- confidence: Response confidence\n- request_id: Unique request identifier\n- created_at: Auto-generated timestamp\n\nConversation Management:\n- Maintains conversation history\n- Enables conversation context\n- Supports conversation continuation\n- Tracks user interactions\n- Enables personalization improvements\n\nAnalytics Support:\n- User behavior tracking\n- Intent pattern analysis\n- Response quality monitoring\n- Conversation flow analysis\n- Performance optimization\n\nCredentials Required:\n- Supabase API credentials\n- Same as other database operations\n\nConnections:\n- Success: Client Response\n- Error: Error Handler"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.clientResponse }}"
+      },
+      "id": "client-response",
+      "name": "Client Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1500,
+        200
+      ],
+      "notes": "**CLIENT RESPONSE**\n\nPurpose: Sends AI stylist response back to mobile app\n\nSetup Steps:\n1. Respond With: JSON\n2. Response Body: Client response object\n3. Status Code: 200 (default)\n4. Headers: application/json (default)\n\nResponse Format:\n{\n  \"success\": true,\n  \"data\": {\n    \"response\": \"AI stylist message\",\n    \"intent\": \"outfit_request\",\n    \"recommendations\": [...],\n    \"stylingTips\": [...],\n    \"suggestedColors\": [...],\n    \"suggestedCategories\": [...],\n    \"confidence\": 0.8,\n    \"conversationId\": \"conv-123\",\n    \"requestId\": \"req-456\",\n    \"timestamp\": \"2024-01-01T12:00:00Z\"\n  },\n  \"meta\": {\n    \"processingTime\": \"2024-01-01T12:00:00Z\",\n    \"userProfile\": {...},\n    \"availableItems\": 15\n  }\n}\n\nMobile App Integration:\n- Response ready for chat display\n- Recommendations for product cards\n- Styling tips for additional suggestions\n- Color/category suggestions for filters\n- Confidence for response quality indication\n\nChat Features:\n- Natural language responses\n- Item recommendations with images\n- Styling tips and advice\n- Color coordination suggestions\n- Shopping assistance\n\nConnections:\n- Final response to webhook caller\n- End of successful workflow"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// **ERROR HANDLER**\n// Handles errors gracefully and returns appropriate responses\n\nconst error = $json.error || $json;\nconst errorMessage = error.message || 'I apologize, but I encountered an issue processing your request. Please try again.';\nconst errorCode = error.code || 'UNKNOWN_ERROR';\n\n// Log error details\nconsole.error('AI Stylist Error:', {\n  message: errorMessage,\n  code: errorCode,\n  timestamp: new Date().toISOString(),\n  stack: error.stack\n});\n\n// Create error response\nconst errorResponse = {\n  success: false,\n  error: {\n    message: errorMessage,\n    code: errorCode,\n    timestamp: new Date().toISOString()\n  },\n  data: {\n    response: 'I apologize, but I encountered an issue processing your request. Please try again.',\n    intent: 'error',\n    recommendations: [],\n    stylingTips: [],\n    suggestedColors: [],\n    suggestedCategories: [],\n    confidence: 0,\n    conversationId: null,\n    requestId: null,\n    timestamp: new Date().toISOString()\n  },\n  meta: {\n    processingTime: new Date().toISOString(),\n    userProfile: {},\n    availableItems: 0\n  }\n};\n\n// Return error response\nreturn [{ json: errorResponse }];"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ],
+      "notes": "**ERROR HANDLER**\n\nPurpose: Handles errors gracefully and returns appropriate responses\n\nSetup Steps:\n1. Language: JavaScript\n2. Mode: Run Once for All Items\n3. Input: Error object from any failed node\n4. Output: Formatted error response\n\nError Handling:\n- Logs error details for debugging\n- Creates consistent error response format\n- Returns user-friendly error message\n- Maintains API contract with mobile app\n- Prevents workflow crashes\n\nError Response:\n- success: false\n- error: Error details with message, code, timestamp\n- data: Empty data structure matching success format\n- meta: Empty metadata\n\nUser-Friendly Messages:\n- Generic error message for users\n- Maintains conversational tone\n- Encourages retry\n- Doesn't expose technical details\n\nError Codes:\n- VALIDATION_ERROR: Invalid input data\n- PROFILE_ERROR: User profile issues\n- AI_ERROR: AI agent failures\n- DATABASE_ERROR: Database connection issues\n- UNKNOWN_ERROR: Unexpected errors\n\nConnections:\n- Success: Error Response (via respondToWebhook)\n- Handles all node failures in workflow"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "responseCode": 400
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1500,
+        400
+      ],
+      "notes": "**ERROR RESPONSE**\n\nPurpose: Sends error response back to mobile app\n\nSetup Steps:\n1. Respond With: JSON\n2. Response Body: Error response object\n3. Status Code: 400 (Bad Request)\n4. Headers: application/json (default)\n\nError Response Format:\n{\n  \"success\": false,\n  \"error\": {\n    \"message\": \"Error description\",\n    \"code\": \"ERROR_CODE\",\n    \"timestamp\": \"2024-01-01T12:00:00Z\"\n  },\n  \"data\": {\n    \"response\": \"User-friendly error message\",\n    \"intent\": \"error\",\n    \"recommendations\": [],\n    \"stylingTips\": [],\n    \"suggestedColors\": [],\n    \"suggestedCategories\": [],\n    \"confidence\": 0,\n    \"conversationId\": null,\n    \"requestId\": null,\n    \"timestamp\": \"2024-01-01T12:00:00Z\"\n  },\n  \"meta\": {\n    \"processingTime\": \"2024-01-01T12:00:00Z\",\n    \"userProfile\": {},\n    \"availableItems\": 0\n  }\n}\n\nMobile App Integration:\n- Chat can display error message\n- Maintains conversation flow\n- Enables retry functionality\n- Logs errors for analysis\n- Graceful degradation\n\nUser Experience:\n- Friendly error messages\n- Encourages retry\n- Maintains conversation tone\n- No technical exposure\n\nConnections:\n- Final error response to webhook caller\n- End of error handling path"
+    }
+  ],
+  "connections": {
+    "AI Stylist Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message Validator": {
+      "main": [
+        [
+          {
+            "node": "User Profile Fetcher",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Conversation History",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fashion Data Fetcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Profile Fetcher": {
+      "main": [
+        [
+          {
+            "node": "Context Combiner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation History": {
+      "main": [
+        [
+          {
+            "node": "Context Combiner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fashion Data Fetcher": {
+      "main": [
+        [
+          {
+            "node": "Context Combiner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Context Combiner": {
+      "main": [
+        [
+          {
+            "node": "AI Fashion Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Fashion Agent": {
+      "main": [
+        [
+          {
+            "node": "Response Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Processor": {
+      "main": [
+        [
+          {
+            "node": "Session Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session Storage": {
+      "main": [
+        [
+          {
+            "node": "Client Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+  "versionId": "ai-stylist-mcp-v1"
+}

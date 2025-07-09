@@ -1,0 +1,209 @@
+{
+  "name": "Smart Fashion Search (MCP)",
+  "nodes": [
+    {
+      "id": "smart-search-webhook",
+      "name": "Smart Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "smart-search-webhook",
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "query-processor",
+      "name": "Query Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🧠 Advanced Query Processor for Fashion Search\n// Processes search queries with color, style, and context detection\n\nconsole.log('=== SMART SEARCH QUERY PROCESSOR START ===');\n\n// Initialize default values\nlet inputData = {};\nlet searchQuery = '';\nlet userId = 'anonymous';\nlet filters = {};\nlet maxResults = 20;\nlet offset = 0;\n\ntry {\n  // Extract input data from webhook\n  const inputs = $input.all();\n  if (inputs.length > 0 && inputs[0] && inputs[0].json) {\n    inputData = inputs[0].json;\n    console.log('✅ Input received:', Object.keys(inputData));\n    \n    // Extract parameters\n    searchQuery = inputData.query || inputData.searchQuery || inputData.q || '';\n    userId = inputData.userId || inputData.user_id || 'anonymous';\n    filters = inputData.filters || {};\n    maxResults = Math.max(1, Math.min(50, parseInt(inputData.limit || inputData.maxResults) || 20));\n    offset = Math.max(0, parseInt(inputData.offset) || 0);\n    \n    console.log('🔍 Extracted params:', {\n      query: searchQuery,\n      userId,\n      maxResults,\n      filters\n    });\n  }\n} catch (error) {\n  console.log('❌ Error processing input:', error.message);\n}\n\n// Advanced query analysis with fashion-specific intelligence\nfunction analyzeQuery(query) {\n  const original = String(query).toLowerCase().trim();\n  \n  // Enhanced color detection\n  const colorMap = {\n    'black': ['black', 'noir', 'dark', 'charcoal'],\n    'white': ['white', 'cream', 'ivory', 'off-white'],\n    'red': ['red', 'crimson', 'burgundy', 'maroon'],\n    'blue': ['blue', 'navy', 'royal', 'cobalt'],\n    'green': ['green', 'emerald', 'forest', 'olive'],\n    'yellow': ['yellow', 'gold', 'mustard', 'amber'],\n    'purple': ['purple', 'violet', 'lavender', 'plum'],\n    'pink': ['pink', 'rose', 'blush', 'fuchsia'],\n    'orange': ['orange', 'coral', 'peach', 'tangerine'],\n    'brown': ['brown', 'tan', 'beige', 'camel'],\n    'gray': ['gray', 'grey', 'silver', 'charcoal']\n  };\n  \n  let detectedColors = [];\n  for (const [color, variations] of Object.entries(colorMap)) {\n    if (variations.some(variation => original.includes(variation))) {\n      detectedColors.push(color);\n    }\n  }\n  \n  // Category detection\n  let category = 'general';\n  const categoryMap = {\n    'dresses': ['dress', 'gown', 'frock', 'sundress'],\n    'tops': ['shirt', 'top', 'blouse', 'tee', 'sweater'],\n    'bottoms': ['pants', 'jeans', 'trouser', 'shorts', 'skirt'],\n    'shoes': ['shoe', 'boot', 'sneaker', 'sandal', 'heel'],\n    'outerwear': ['jacket', 'coat', 'blazer', 'vest'],\n    'accessories': ['bag', 'purse', 'wallet', 'belt', 'hat']\n  };\n  \n  for (const [cat, keywords] of Object.entries(categoryMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      category = cat;\n      break;\n    }\n  }\n  \n  return {\n    original: query.trim(),\n    expanded: [original, ...detectedColors, category !== 'general' ? category : '', 'fashion'].filter(Boolean).join(' '),\n    colors: detectedColors,\n    category: category,\n    intent: 'general_search'\n  };\n}\n\n// Process the query\nconst queryAnalysis = analyzeQuery(searchQuery);\n\n// Build result\nconst result = {\n  userId: userId,\n  searchQuery: queryAnalysis,\n  filters: {\n    ...filters,\n    colors: [...new Set([...queryAnalysis.colors, ...(filters.colors || [])])],\n    categories: filters.categories || [queryAnalysis.category].filter(c => c !== 'general')\n  },\n  maxResults: maxResults,\n  offset: offset,\n  timestamp: new Date().toISOString(),\n  searchId: `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`\n};\n\nconsole.log('🎯 Final processed data:', JSON.stringify(result, null, 2));\nreturn result;"
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "database-search",
+      "name": "Database Search",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  fi.id,\n  fi.name,\n  fi.description,\n  fi.price,\n  fi.images,\n  fi.colors,\n  b.name as brand_name,\n  c.name as category_name\nFROM fashion_items fi\nLEFT JOIN brands b ON fi.brand_id = b.id\nLEFT JOIN categories c ON fi.category_id = c.id\nWHERE fi.is_active = true\n{% if $json.searchQuery.original !== '' %}\n  AND (\n    fi.name ILIKE '%{{ $json.searchQuery.original }}%'\n    OR fi.description ILIKE '%{{ $json.searchQuery.original }}%'\n  )\n{% endif %}\n{% if $json.searchQuery.colors.length > 0 %}\n  AND fi.colors && ARRAY[{% for color in $json.searchQuery.colors %}'{{ color }}'{% if not loop.last %},{% endif %}{% endfor %}]\n{% endif %}\nORDER BY fi.popularity_score DESC\nLIMIT {{ $json.maxResults }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "web-search",
+      "name": "Web Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.bing.microsoft.com/v7.0/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Ocp-Apim-Subscription-Key",
+              "value": "={{ $vars.BING_SEARCH_API_KEY }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.searchQuery.expanded }} fashion shop buy"
+            },
+            {
+              "name": "count",
+              "value": "={{ Math.min($json.maxResults, 15) }}"
+            },
+            {
+              "name": "mkt",
+              "value": "en-US"
+            }
+          ]
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "results-aggregator",
+      "name": "Results Aggregator", 
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// 🎯 Smart Results Aggregator\n// Combines database and web results\n\nconst allInputs = $input.all();\nlet queryData = null;\nlet dbResults = [];\nlet webResults = [];\n\n// Process inputs\nallInputs.forEach((input) => {\n  const data = input.json;\n  \n  if (data && data.searchQuery && data.userId) {\n    queryData = data;\n  } else if (Array.isArray(data)) {\n    dbResults = data.map((item, idx) => ({\n      id: item.id || `db_${idx}`,\n      title: item.name || 'Fashion Item',\n      description: item.description || '',\n      price: item.price ? `$${item.price}` : null,\n      brand: item.brand_name || 'Brand',\n      category: item.category_name || 'Fashion',\n      colors: item.colors || [],\n      source: 'database',\n      relevanceScore: 50\n    }));\n  } else if (data && data.webPages) {\n    webResults = data.webPages.value?.map((item, idx) => ({\n      id: `web_${idx}`,\n      title: item.name || 'Fashion Item',\n      description: item.snippet || '',\n      url: item.url || '',\n      source: 'web',\n      relevanceScore: 25\n    })) || [];\n  }\n});\n\n// Fallback\nif (!queryData) {\n  queryData = {\n    searchQuery: { original: 'fashion' },\n    userId: 'anonymous',\n    searchId: `fallback_${Date.now()}`\n  };\n}\n\n// Combine results\nlet combinedResults = [...dbResults, ...webResults];\ncombinedResults.sort((a, b) => b.relevanceScore - a.relevanceScore);\ncombinedResults = combinedResults.slice(0, 20);\n\nreturn {\n  success: true,\n  query: queryData.searchQuery,\n  results: combinedResults,\n  metadata: {\n    total: combinedResults.length,\n    dbResults: dbResults.length,\n    webResults: webResults.length,\n    searchId: queryData.searchId,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1120, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin", 
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "disabled": false,
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "executeOnce": false
+    }
+  ],
+  "connections": {
+    "Smart Search Webhook": {
+      "main": [
+        [
+          {
+            "node": "Query Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Processor": {
+      "main": [
+        [
+          {
+            "node": "Database Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Web Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Search": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search": {
+      "main": [
+        [
+          {
+            "node": "Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Results Aggregator": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -156,9 +156,14 @@ export function VirtualChangingRoom({ userHasAvatar = false }: VirtualChangingRo
   const handleVirtualTryOn = () => {
     if (!hasClothesForTryOn) return;
     
-    // TODO: Implement actual virtual try-on processing
-    console.log('Starting virtual try-on with outfit:', currentOutfit);
-    // This would typically trigger the virtual try-on API or process
+    // Convert current outfit to clothing items array
+    const clothingItems = Object.values(currentOutfit)
+      .filter(Boolean)
+      .flat();
+    
+    // TODO: Trigger VirtualTryOnEngine component
+    console.log('Starting virtual try-on with outfit:', clothingItems);
+    // This would open the VirtualTryOnEngine modal
   };
 
   // Avatar creation prompt
@@ -176,8 +181,9 @@ export function VirtualChangingRoom({ userHasAvatar = false }: VirtualChangingRo
           <Button 
             className="w-full"
             onClick={() => {
-              // TODO: Trigger n8n avatar creation workflow
+              // TODO: Trigger AvatarCreationFlow component
               setShowAvatarPrompt(false);
+              // This would open the AvatarCreationFlow modal
             }}
           >
             Create Avatar

@@ -1,0 +1,2 @@
+{"__type":"$$EventMessageAudit","id":"6de584e0-3bbd-4a8d-be59-98f436d3fddb","ts":"2025-06-22T15:43:31.051Z","eventName":"n8n.audit.user.login.success","message":"n8n.audit.user.login.success","payload":{"userId":"cbe65ab8-c188-4397-8119-b39fb058869e","_email":"peter89odia@gmail.com","_firstName":"Peter","_lastName":"Odia","globalRole":"global:owner","authenticationMethod":"email"}}
+{"__type":"$$EventMessageConfirm","confirm":"6de584e0-3bbd-4a8d-be59-98f436d3fddb","ts":"2025-06-22T15:43:31.054Z","source":{"id":"0","name":"eventBus"}}

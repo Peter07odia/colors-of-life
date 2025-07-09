@@ -1,0 +1,349 @@
+{
+  "meta": {
+    "instanceId": "colors-of-life-smart-search-v2"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "smart-search",
+        "options": {
+          "noResponseBody": false
+        }
+      },
+      "id": "smart-search-webhook",
+      "name": "🚀 Smart Search Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "smart-search-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 Advanced Query Processor with Color & Image Support\n// Enhanced processor for text, color, and image search queries\n\nconsole.log('=== ADVANCED QUERY PROCESSOR START ===');\n\n// Safely extract input data\nlet inputData = {};\nlet searchQuery = '';\nlet userId = 'anonymous';\nlet searchType = 'text';\nlet imageUri = null;\nlet filters = {};\nlet maxResults = 20;\nlet offset = 0;\n\ntry {\n  const inputs = $input.all();\n  if (inputs.length > 0 && inputs[0] && inputs[0].json) {\n    inputData = inputs[0].json;\n    console.log('✅ Input received:', Object.keys(inputData));\n    \n    // Extract search parameters\n    searchQuery = inputData.query || inputData.searchQuery || inputData.q || '';\n    userId = inputData.userId || inputData.user_id || 'anonymous';\n    searchType = inputData.searchType || (inputData.imageUri ? 'image' : 'text');\n    imageUri = inputData.imageUri || null;\n    filters = inputData.filters || {};\n    maxResults = Math.max(1, Math.min(50, parseInt(inputData.limit || inputData.maxResults) || 20));\n    offset = Math.max(0, parseInt(inputData.offset) || 0);\n    \n    console.log('🔍 Search params:', {\n      query: searchQuery,\n      type: searchType,\n      hasImage: !!imageUri,\n      userId,\n      filters,\n      maxResults,\n      offset\n    });\n  }\n} catch (error) {\n  console.log('❌ Error processing input:', error.message);\n}\n\n// Enhanced query analysis with color and style detection\nfunction analyzeQuery(query) {\n  const original = String(query).toLowerCase().trim();\n  \n  // Color detection (expanded list)\n  const colorMap = {\n    'black': ['black', 'noir', 'dark', 'charcoal', 'ebony'],\n    'white': ['white', 'cream', 'ivory', 'off-white', 'pearl'],\n    'red': ['red', 'crimson', 'burgundy', 'maroon', 'cherry', 'rose'],\n    'blue': ['blue', 'navy', 'royal', 'cobalt', 'azure', 'indigo'],\n    'green': ['green', 'emerald', 'forest', 'olive', 'mint', 'sage'],\n    'yellow': ['yellow', 'gold', 'mustard', 'amber', 'lemon'],\n    'purple': ['purple', 'violet', 'lavender', 'plum', 'orchid'],\n    'pink': ['pink', 'rose', 'blush', 'fuchsia', 'magenta', 'coral'],\n    'orange': ['orange', 'coral', 'peach', 'tangerine', 'apricot'],\n    'brown': ['brown', 'tan', 'beige', 'camel', 'coffee', 'chocolate'],\n    'gray': ['gray', 'grey', 'silver', 'charcoal', 'slate'],\n    'neutral': ['neutral', 'nude', 'natural', 'beige', 'taupe']\n  };\n  \n  let detectedColors = [];\n  for (const [color, variations] of Object.entries(colorMap)) {\n    if (variations.some(variation => original.includes(variation))) {\n      detectedColors.push(color);\n    }\n  }\n  \n  // Category detection (expanded)\n  let category = 'general';\n  const categoryMap = {\n    'dresses': ['dress', 'gown', 'frock', 'sundress', 'maxi', 'midi', 'mini'],\n    'tops': ['shirt', 'top', 'blouse', 'tee', 't-shirt', 'tank', 'camisole', 'sweater', 'cardigan'],\n    'bottoms': ['pants', 'jeans', 'trouser', 'shorts', 'skirt', 'leggings', 'joggers'],\n    'shoes': ['shoe', 'boot', 'sneaker', 'sandal', 'heel', 'flat', 'loafer'],\n    'outerwear': ['jacket', 'coat', 'blazer', 'cardigan', 'hoodie', 'vest'],\n    'accessories': ['bag', 'purse', 'wallet', 'belt', 'hat', 'scarf', 'jewelry']\n  };\n  \n  for (const [cat, keywords] of Object.entries(categoryMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      category = cat;\n      break;\n    }\n  }\n  \n  // Style detection (expanded)\n  let style = 'general';\n  const styleMap = {\n    'casual': ['casual', 'relaxed', 'everyday', 'comfortable'],\n    'formal': ['formal', 'business', 'professional', 'office', 'work'],\n    'party': ['party', 'evening', 'cocktail', 'night out', 'celebration'],\n    'summer': ['summer', 'beach', 'vacation', 'light', 'breathable'],\n    'winter': ['winter', 'warm', 'cozy', 'thermal', 'layering'],\n    'vintage': ['vintage', 'retro', 'classic', 'timeless', 'traditional'],\n    'modern': ['modern', 'contemporary', 'trendy', 'current', 'fashionable'],\n    'bohemian': ['boho', 'bohemian', 'free-spirited', 'artsy', 'eclectic']\n  };\n  \n  for (const [styleType, keywords] of Object.entries(styleMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      style = styleType;\n      break;\n    }\n  }\n  \n  // Occasion detection\n  let occasion = 'general';\n  const occasionMap = {\n    'work': ['work', 'office', 'business', 'professional', 'meeting'],\n    'date': ['date', 'romantic', 'dinner', 'date night'],\n    'wedding': ['wedding', 'bridal', 'guest', 'ceremony'],\n    'travel': ['travel', 'vacation', 'trip', 'airport', 'comfortable'],\n    'gym': ['gym', 'workout', 'exercise', 'fitness', 'athletic', 'sports']\n  };\n  \n  for (const [occ, keywords] of Object.entries(occasionMap)) {\n    if (keywords.some(keyword => original.includes(keyword))) {\n      occasion = occ;\n      break;\n    }\n  }\n  \n  // Create enhanced search terms\n  const enhancedTerms = [original];\n  if (detectedColors.length > 0) enhancedTerms.push(...detectedColors);\n  if (category !== 'general') enhancedTerms.push(category);\n  if (style !== 'general') enhancedTerms.push(style);\n  if (occasion !== 'general') enhancedTerms.push(occasion);\n  \n  // Add fashion-related terms\n  enhancedTerms.push('fashion', 'clothing', 'style', 'outfit');\n  \n  return {\n    original: query.trim(),\n    expanded: [...new Set(enhancedTerms)].join(' '),\n    colors: detectedColors,\n    category: category,\n    style: style,\n    occasion: occasion,\n    searchTerms: enhancedTerms\n  };\n}\n\n// Process the query\nconst queryAnalysis = searchType === 'image' ? {\n  original: 'image_search',\n  expanded: 'fashion clothing style image search',\n  colors: filters.colors || [],\n  category: 'general',\n  style: 'general',\n  occasion: 'general',\n  searchTerms: ['fashion', 'clothing', 'style']\n} : analyzeQuery(searchQuery);\n\n// Merge detected colors with filter colors\nconst allColors = [...new Set([...queryAnalysis.colors, ...(filters.colors || [])])];\n\n// Build the final processed data\nconst result = {\n  userId: userId,\n  searchType: searchType,\n  searchQuery: {\n    ...queryAnalysis,\n    colors: allColors\n  },\n  imageUri: imageUri,\n  filters: {\n    ...filters,\n    colors: allColors,\n    categories: filters.categories || [queryAnalysis.category].filter(c => c !== 'general'),\n    priceRange: filters.priceRange || null,\n    source: filters.source || 'all'\n  },\n  maxResults: maxResults,\n  offset: offset,\n  timestamp: new Date().toISOString(),\n  debug: {\n    originalInput: inputData,\n    detectedColors: queryAnalysis.colors,\n    detectedCategory: queryAnalysis.category,\n    detectedStyle: queryAnalysis.style,\n    detectedOccasion: queryAnalysis.occasion\n  }\n};\n\nconsole.log('🎯 Final processed data:', JSON.stringify(result, null, 2));\nconsole.log('=== ADVANCED QUERY PROCESSOR END ===');\n\nreturn result;"
+      },
+      "id": "advanced-query-processor",
+      "name": "🧠 Advanced Query Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.searchType }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "search-type-router",
+      "name": "🔀 Search Type Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🖼️ Image Analysis & Processing\n// Process uploaded image for visual search\n\nconsole.log('=== IMAGE PROCESSOR START ===');\n\nconst inputData = $input.first().json;\nconst { imageUri, userId, filters } = inputData;\n\nconsole.log('📸 Processing image search:', { imageUri, userId });\n\n// Mock image analysis (in real implementation, this would use AI vision services)\nconst imageAnalysis = {\n  dominantColors: ['red', 'white', 'blue'],\n  detectedCategories: ['dress', 'formal wear'],\n  style: 'elegant',\n  patterns: ['solid', 'minimal'],\n  confidence: 0.85\n};\n\n// Create search query based on image analysis\nconst generatedQuery = {\n  original: 'visual_search',\n  expanded: `${imageAnalysis.detectedCategories.join(' ')} ${imageAnalysis.dominantColors.join(' ')} ${imageAnalysis.style} fashion clothing`,\n  colors: imageAnalysis.dominantColors,\n  category: imageAnalysis.detectedCategories[0] || 'general',\n  style: imageAnalysis.style,\n  patterns: imageAnalysis.patterns,\n  confidence: imageAnalysis.confidence\n};\n\nconst result = {\n  ...inputData,\n  imageAnalysis,\n  searchQuery: generatedQuery,\n  searchType: 'image',\n  processedAt: new Date().toISOString()\n};\n\nconsole.log('✅ Image analysis complete:', result);\nconsole.log('=== IMAGE PROCESSOR END ===');\n\nreturn result;"
+      },
+      "id": "image-processor",
+      "name": "🖼️ Image Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.searchQuery.expanded }}",
+        "count": "={{ Math.min($json.maxResults, 15) }}",
+        "offset": "={{ $json.offset || 0 }}",
+        "search_type": "search"
+      },
+      "id": "web-search-brave",
+      "name": "🌐 Web Fashion Search",
+      "type": "mcp_brave-search.brave_web_search",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "query": "SELECT \n  fi.id,\n  fi.name,\n  fi.description,\n  fi.price,\n  fi.original_price,\n  fi.images,\n  fi.colors,\n  fi.sizes,\n  fi.tags,\n  fi.style_attributes,\n  fi.materials,\n  fi.product_code,\n  fi.popularity_score,\n  fi.discount_percentage,\n  b.name as brand_name,\n  b.logo_url as brand_logo,\n  c.name as category_name,\n  c.icon_name as category_icon\nFROM fashion_items fi\nLEFT JOIN brands b ON fi.brand_id = b.id\nLEFT JOIN categories c ON fi.category_id = c.id\nWHERE fi.is_active = true\n{% if $json.searchQuery.original !== 'image_search' and $json.searchQuery.original !== 'visual_search' %}\n  AND (\n    fi.name ILIKE '%{{ $json.searchQuery.original }}%'\n    OR fi.description ILIKE '%{{ $json.searchQuery.original }}%'\n    OR fi.tags::text ILIKE '%{{ $json.searchQuery.original }}%'\n    OR b.name ILIKE '%{{ $json.searchQuery.original }}%'\n    OR c.name ILIKE '%{{ $json.searchQuery.original }}%'\n  )\n{% endif %}\n{% if $json.searchQuery.colors.length > 0 %}\n  AND fi.colors && ARRAY[{% for color in $json.searchQuery.colors %}'{{ color }}'{% if not loop.last %},{% endif %}{% endfor %}]\n{% endif %}\n{% if $json.filters.categories.length > 0 %}\n  AND c.name = ANY(ARRAY[{% for category in $json.filters.categories %}'{{ category }}'{% if not loop.last %},{% endif %}{% endfor %}])\n{% endif %}\n{% if $json.filters.priceRange %}\n  AND fi.price >= {{ $json.filters.priceRange.min }}\n  AND fi.price <= {{ $json.filters.priceRange.max }}\n{% endif %}\nORDER BY \n  CASE \n    WHEN fi.name ILIKE '%{{ $json.searchQuery.original }}%' THEN 1\n    WHEN fi.description ILIKE '%{{ $json.searchQuery.original }}%' THEN 2\n    WHEN fi.tags::text ILIKE '%{{ $json.searchQuery.original }}%' THEN 3\n    ELSE 4\n  END,\n  fi.popularity_score DESC,\n  fi.created_at DESC\nLIMIT {{ $json.maxResults }}\nOFFSET {{ $json.offset || 0 }};",
+        "operation": "executeQuery"
+      },
+      "id": "database-search",
+      "name": "🗄️ Enhanced Database Search",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🎯 Advanced Results Aggregator\n// Combines and ranks results from multiple sources\n\nconsole.log('=== ADVANCED AGGREGATOR START ===');\n\nconst allInputs = $input.all();\nconsole.log('📊 Total inputs:', allInputs.length);\n\n// Initialize containers\nlet queryData = null;\nlet webResults = [];\nlet dbResults = [];\nlet imageData = null;\n\n// Process all inputs\nallInputs.forEach((input, index) => {\n  const data = input.json;\n  console.log(`Input ${index}:`, data ? Object.keys(data) : 'null');\n  \n  // Query processor data\n  if (data && data.searchQuery && data.userId) {\n    queryData = data;\n    console.log('✅ Query data found:', data.searchQuery.original);\n    \n    // Check if this is image data\n    if (data.imageAnalysis) {\n      imageData = data.imageAnalysis;\n      console.log('📸 Image analysis data found');\n    }\n  }\n  \n  // Web search results from Brave\n  else if (data && data.results && Array.isArray(data.results)) {\n    console.log('🌐 Web results:', data.results.length);\n    webResults = data.results.map((item, idx) => {\n      // Enhanced web result processing\n      const title = item.title || 'Fashion Item';\n      const description = item.snippet || item.description || '';\n      const url = item.url || '';\n      \n      // Extract potential price from title or description\n      const priceMatch = (title + ' ' + description).match(/\\$([0-9]+(?:\\.[0-9]{2})?)/i);\n      const price = priceMatch ? `$${priceMatch[1]}` : null;\n      \n      // Try to extract brand from URL or title\n      const brandMatch = url.match(/\\/\\/(?:www\\.)?(\\w+)\\./i);\n      const brand = brandMatch ? brandMatch[1].charAt(0).toUpperCase() + brandMatch[1].slice(1) : null;\n      \n      return {\n        id: `web_${idx}`,\n        title: title,\n        description: description,\n        price: price,\n        brand: brand,\n        image: null, // Web results typically don't have direct image URLs\n        url: url,\n        source: 'web',\n        type: 'web_result',\n        relevanceScore: calculateWebRelevance(item, queryData?.searchQuery),\n        isVideo: false\n      };\n    });\n  }\n  \n  // Database results\n  else if (Array.isArray(data)) {\n    console.log('🗄️ Database results:', data.length);\n    dbResults = data.map((item, idx) => {\n      const images = parseImages(item.images);\n      const discount = item.discount_percentage || \n        (item.original_price && item.price ? \n          Math.round(((item.original_price - item.price) / item.original_price) * 100) : 0);\n      \n      return {\n        id: item.id || `db_${idx}`,\n        title: item.name || 'Fashion Item',\n        description: item.description || '',\n        image: images,\n        price: item.price ? `$${item.price}` : null,\n        originalPrice: item.original_price ? `$${item.original_price}` : null,\n        brand: item.brand_name || item.brand_id,\n        category: item.category_name || item.category_id,\n        colors: item.colors || [],\n        sizes: item.sizes || [],\n        tags: item.tags || [],\n        materials: item.materials || [],\n        productCode: item.product_code,\n        styleAttributes: item.style_attributes || {},\n        source: 'database',\n        type: 'fashion_item',\n        relevanceScore: calculateDbRelevance(item, queryData?.searchQuery),\n        discount: discount,\n        isVideo: false,\n        popularityScore: item.popularity_score || 0\n      };\n    });\n  }\n});\n\n// Fallback query data\nif (!queryData) {\n  console.log('⚠️ Using fallback query data');\n  queryData = {\n    searchQuery: { original: 'fashion', expanded: 'fashion clothing', category: 'general', colors: [] },\n    userId: 'anonymous',\n    maxResults: 20,\n    searchType: 'text'\n  };\n}\n\n// Helper functions\nfunction parseImages(images) {\n  if (!images) return null;\n  if (typeof images === 'string') {\n    try {\n      const parsed = JSON.parse(images);\n      return Array.isArray(parsed) ? parsed[0] : parsed;\n    } catch { return images; }\n  }\n  return Array.isArray(images) ? images[0] : images;\n}\n\nfunction calculateWebRelevance(item, searchQuery) {\n  if (!searchQuery) return 1;\n  \n  const query = searchQuery.original.toLowerCase();\n  const title = (item.title || '').toLowerCase();\n  const description = (item.snippet || item.description || '').toLowerCase();\n  \n  let score = 0;\n  \n  // Exact matches\n  if (title.includes(query)) score += 40;\n  if (description.includes(query)) score += 20;\n  \n  // Color matching\n  if (searchQuery.colors && searchQuery.colors.length > 0) {\n    searchQuery.colors.forEach(color => {\n      if (title.includes(color) || description.includes(color)) {\n        score += 25;\n      }\n    });\n  }\n  \n  // Category matching\n  if (searchQuery.category && searchQuery.category !== 'general') {\n    if (title.includes(searchQuery.category) || description.includes(searchQuery.category)) {\n      score += 20;\n    }\n  }\n  \n  // Word matching\n  const queryWords = query.split(' ').filter(w => w.length > 2);\n  queryWords.forEach(word => {\n    if (title.includes(word)) score += 10;\n    if (description.includes(word)) score += 5;\n  });\n  \n  // Fashion-specific bonus\n  const fashionTerms = ['fashion', 'style', 'clothing', 'apparel', 'outfit', 'wear'];\n  fashionTerms.forEach(term => {\n    if (title.includes(term) || description.includes(term)) {\n      score += 3;\n    }\n  });\n  \n  return Math.max(score, 1);\n}\n\nfunction calculateDbRelevance(item, searchQuery) {\n  if (!searchQuery) return 1;\n  \n  const query = searchQuery.original.toLowerCase();\n  const title = (item.name || '').toLowerCase();\n  const description = (item.description || '').toLowerCase();\n  const tags = (item.tags || []).join(' ').toLowerCase();\n  \n  let score = 0;\n  \n  // Exact matches (higher weight for database items)\n  if (title.includes(query)) score += 50;\n  if (description.includes(query)) score += 30;\n  if (tags.includes(query)) score += 20;\n  \n  // Color matching (exact match since we have structured data)\n  if (searchQuery.colors && searchQuery.colors.length > 0) {\n    const itemColors = item.colors || [];\n    const colorMatches = searchQuery.colors.filter(color => itemColors.includes(color));\n    score += colorMatches.length * 30;\n  }\n  \n  // Category matching\n  if (searchQuery.category && searchQuery.category !== 'general') {\n    if (item.category_name && item.category_name.toLowerCase().includes(searchQuery.category)) {\n      score += 25;\n    }\n  }\n  \n  // Brand matching\n  if (item.brand_name && query.includes(item.brand_name.toLowerCase())) {\n    score += 20;\n  }\n  \n  // Popularity bonus\n  score += (item.popularity_score || 0) * 0.1;\n  \n  // Database item bonus (we trust our own data more)\n  score += 10;\n  \n  // Discount bonus (users like deals)\n  if (item.discount_percentage > 0) {\n    score += 5;\n  }\n  \n  return Math.max(score, 1);\n}\n\n// Combine and rank results\nlet combinedResults = [...webResults, ...dbResults];\n\n// Apply additional filtering based on search type\nif (queryData.searchType === 'image' && imageData) {\n  // For image search, prioritize items with similar colors\n  combinedResults = combinedResults.map(item => {\n    let bonus = 0;\n    if (item.colors && imageData.dominantColors) {\n      const colorMatches = item.colors.filter(color => \n        imageData.dominantColors.includes(color)\n      );\n      bonus = colorMatches.length * 20;\n    }\n    return {\n      ...item,\n      relevanceScore: item.relevanceScore + bonus\n    };\n  });\n}\n\n// Sort by relevance score\ncombinedResults.sort((a, b) => b.relevanceScore - a.relevanceScore);\n\n// Limit results\ncombinedResults = combinedResults.slice(0, queryData.maxResults || 20);\n\nconsole.log('📈 Final results:', combinedResults.length);\nconsole.log('🎯 Top 3 results:', combinedResults.slice(0, 3).map(r => ({ title: r.title, score: r.relevanceScore })));\n\n// Build comprehensive response\nconst finalResult = {\n  success: true,\n  query: queryData.searchQuery,\n  results: combinedResults,\n  metadata: {\n    total: combinedResults.length,\n    webResults: webResults.length,\n    databaseResults: dbResults.length,\n    sources: [],\n    searchType: queryData.searchType,\n    timestamp: new Date().toISOString(),\n    filters: queryData.filters || {},\n    imageAnalysis: imageData || null\n  },\n  debug: {\n    inputsProcessed: allInputs.length,\n    queryFound: !!queryData,\n    finalQuery: queryData.searchQuery.original,\n    topScores: combinedResults.slice(0, 5).map(r => r.relevanceScore)\n  }\n};\n\n// Add sources\nif (webResults.length > 0) finalResult.metadata.sources.push('web');\nif (dbResults.length > 0) finalResult.metadata.sources.push('database');\n\nconsole.log('🎯 SUCCESS - Query:', finalResult.query.original);\nconsole.log('🎯 SUCCESS - Results:', finalResult.results.length);\nconsole.log('🎯 SUCCESS - Sources:', finalResult.metadata.sources);\nconsole.log('=== ADVANCED AGGREGATOR END ===');\n\nreturn finalResult;"
+      },
+      "id": "advanced-aggregator",
+      "name": "🎯 Advanced Results Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "results-check",
+      "name": "✅ Results Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "GET, POST, PUT, DELETE, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      },
+      "id": "success-response",
+      "name": "📤 Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🚨 Enhanced No Results Handler\n// Provides intelligent suggestions and fallback options\n\nconst originalData = $input.first().json;\nconst query = originalData.query?.original || 'your search';\nconst searchType = originalData.metadata?.searchType || 'text';\nconst filters = originalData.metadata?.filters || {};\n\n// Generate intelligent suggestions based on search context\nconst generateSuggestions = (query, searchType, filters) => {\n  const suggestions = {\n    tryBroaderTerms: [],\n    popularSearches: [],\n    searchTips: [],\n    colorSuggestions: [],\n    categorySuggestions: []\n  };\n  \n  if (searchType === 'image') {\n    suggestions.tryBroaderTerms = [\n      'Try taking a clearer photo',\n      'Focus on a single clothing item',\n      'Ensure good lighting in your image'\n    ];\n    suggestions.searchTips = [\n      'Use images with clear, well-lit clothing items',\n      'Avoid cluttered backgrounds',\n      'Try different angles or closer shots'\n    ];\n  } else {\n    suggestions.tryBroaderTerms = [\n      'Try simpler terms like \"dress\" or \"shirt\"',\n      'Remove specific colors or styles',\n      'Check spelling of fashion terms',\n      'Use more general categories'\n    ];\n    suggestions.searchTips = [\n      'Use basic terms like \"dress\", \"shirt\", \"pants\"',\n      'Try different color names',\n      'Search by category: tops, bottoms, dresses',\n      'Include occasion: work, casual, formal'\n    ];\n  }\n  \n  // Popular searches based on season/trends\n  const currentMonth = new Date().getMonth();\n  const isWinter = currentMonth >= 11 || currentMonth <= 1;\n  const isSummer = currentMonth >= 5 && currentMonth <= 7;\n  \n  if (isWinter) {\n    suggestions.popularSearches = [\n      'winter coat', 'warm sweater', 'boots', 'cozy cardigan',\n      'formal wear', 'holiday dress', 'layering pieces'\n    ];\n  } else if (isSummer) {\n    suggestions.popularSearches = [\n      'summer dress', 'sandals', 'shorts', 'tank top',\n      'swimwear', 'light cardigan', 'sun hat'\n    ];\n  } else {\n    suggestions.popularSearches = [\n      'casual shirt', 'jeans', 'sneakers', 'spring dress',\n      'light jacket', 'comfortable shoes', 'versatile top'\n    ];\n  }\n  \n  // Color suggestions\n  suggestions.colorSuggestions = [\n    'black', 'white', 'blue', 'red', 'green',\n    'neutral', 'pink', 'gray', 'brown'\n  ];\n  \n  // Category suggestions\n  suggestions.categorySuggestions = [\n    'dresses', 'tops', 'bottoms', 'shoes',\n    'outerwear', 'accessories', 'activewear'\n  ];\n  \n  return suggestions;\n};\n\nconst suggestions = generateSuggestions(query, searchType, filters);\n\n// Create contextual message\nlet message = `No items found for \"${query}\"`;\nif (searchType === 'image') {\n  message = 'No similar items found in your image search';\n} else if (filters.colors && filters.colors.length > 0) {\n  message += ` with colors: ${filters.colors.join(', ')}`;\n}\n\nconst response = {\n  success: false,\n  query: originalData.query,\n  results: [],\n  message: message,\n  suggestions: suggestions,\n  metadata: {\n    total: 0,\n    webResults: 0,\n    databaseResults: 0,\n    sources: [],\n    searchType: searchType,\n    timestamp: new Date().toISOString(),\n    filters: filters\n  },\n  debug: {\n    originalQuery: query,\n    searchType: searchType,\n    appliedFilters: filters\n  }\n};\n\nconsole.log('🚨 No results for:', query);\nconsole.log('💡 Suggestions generated:', suggestions.tryBroaderTerms.length);\n\nreturn response;"
+      },
+      "id": "enhanced-no-results",
+      "name": "🚨 Enhanced No Results Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📊 Comprehensive Analytics Logger\n// Track search patterns, performance, and user behavior\n\nconst data = $input.first().json;\nconst timestamp = new Date().toISOString();\n\n// Extract analytics data\nconst analytics = {\n  searchId: `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,\n  timestamp: timestamp,\n  userId: data.debug?.userId || 'anonymous',\n  searchType: data.metadata?.searchType || 'text',\n  query: data.query?.original || 'unknown',\n  expandedQuery: data.query?.expanded || '',\n  category: data.query?.category || 'general',\n  colors: data.query?.colors || [],\n  style: data.query?.style || 'general',\n  occasion: data.query?.occasion || 'general',\n  resultsCount: data.results?.length || 0,\n  sources: data.metadata?.sources || [],\n  success: data.success || false,\n  filters: data.metadata?.filters || {},\n  performance: {\n    totalSources: data.metadata?.sources?.length || 0,\n    webResults: data.metadata?.webResults || 0,\n    databaseResults: data.metadata?.databaseResults || 0,\n    topRelevanceScore: data.debug?.topScores?.[0] || 0\n  },\n  imageAnalysis: data.metadata?.imageAnalysis || null\n};\n\n// Log different types of search patterns\nif (analytics.searchType === 'image') {\n  console.log('📸 Image search analytics:', {\n    hasImageAnalysis: !!analytics.imageAnalysis,\n    dominantColors: analytics.imageAnalysis?.dominantColors || [],\n    detectedCategories: analytics.imageAnalysis?.detectedCategories || [],\n    confidence: analytics.imageAnalysis?.confidence || 0\n  });\n}\n\nif (analytics.colors.length > 0) {\n  console.log('🎨 Color search analytics:', {\n    colors: analytics.colors,\n    query: analytics.query,\n    results: analytics.resultsCount\n  });\n}\n\nif (analytics.resultsCount === 0) {\n  console.log('⚠️ Zero results analytics:', {\n    query: analytics.query,\n    expandedQuery: analytics.expandedQuery,\n    filters: analytics.filters,\n    searchType: analytics.searchType\n  });\n}\n\nif (analytics.resultsCount > 15) {\n  console.log('🎉 High results analytics:', {\n    query: analytics.query,\n    resultsCount: analytics.resultsCount,\n    sources: analytics.sources\n  });\n}\n\n// Track search performance\nconst performanceMetrics = {\n  searchLatency: Date.now() - new Date(analytics.timestamp).getTime(),\n  sourcesUsed: analytics.sources.length,\n  webToDbRatio: analytics.performance.webResults / Math.max(analytics.performance.databaseResults, 1),\n  averageRelevanceScore: analytics.performance.topRelevanceScore\n};\n\nconsole.log('⚡ Performance metrics:', performanceMetrics);\n\n// User behavior insights\nif (analytics.userId !== 'anonymous') {\n  console.log('👤 User behavior:', {\n    userId: analytics.userId,\n    searchType: analytics.searchType,\n    preferredCategories: analytics.category,\n    colorPreferences: analytics.colors\n  });\n}\n\n// Trend analysis\nconst trendData = {\n  popularQuery: analytics.query,\n  searchVolume: 1, // Would aggregate in real analytics\n  categoryTrend: analytics.category,\n  colorTrend: analytics.colors,\n  seasonalContext: {\n    month: new Date().getMonth(),\n    season: new Date().getMonth() >= 3 && new Date().getMonth() <= 5 ? 'spring' :\n             new Date().getMonth() >= 6 && new Date().getMonth() <= 8 ? 'summer' :\n             new Date().getMonth() >= 9 && new Date().getMonth() <= 11 ? 'fall' : 'winter'\n  }\n};\n\nconsole.log('📈 Trend analysis:', trendData);\n\n// Quality metrics\nconst qualityMetrics = {\n  searchSuccess: analytics.success,\n  queryComplexity: analytics.query.split(' ').length,\n  filterUsage: Object.keys(analytics.filters).length,\n  resultDiversity: analytics.sources.length,\n  userEngagement: analytics.resultsCount > 0 ? 'high' : 'low'\n};\n\nconsole.log('📊 Quality metrics:', qualityMetrics);\n\n// Store analytics (in production, this would go to analytics service)\nconsole.log('📊 COMPREHENSIVE ANALYTICS:', JSON.stringify({\n  ...analytics,\n  performance: performanceMetrics,\n  trends: trendData,\n  quality: qualityMetrics\n}, null, 2));\n\n// Return original data (pass-through)\nreturn data;"
+      },
+      "id": "comprehensive-analytics",
+      "name": "📊 Comprehensive Analytics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 600]
+    }
+  ],
+  "connections": {
+    "🚀 Smart Search Webhook": {
+      "main": [
+        [
+          {
+            "node": "🧠 Advanced Query Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Advanced Query Processor": {
+      "main": [
+        [
+          {
+            "node": "🔀 Search Type Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Search Type Router": {
+      "main": [
+        [
+          {
+            "node": "🖼️ Image Processor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🌐 Web Fashion Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🗄️ Enhanced Database Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🎯 Advanced Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖼️ Image Processor": {
+      "main": [
+        [
+          {
+            "node": "🌐 Web Fashion Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🗄️ Enhanced Database Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🎯 Advanced Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Web Fashion Search": {
+      "main": [
+        [
+          {
+            "node": "🎯 Advanced Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗄️ Enhanced Database Search": {
+      "main": [
+        [
+          {
+            "node": "🎯 Advanced Results Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Advanced Results Aggregator": {
+      "main": [
+        [
+          {
+            "node": "✅ Results Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Results Check": {
+      "main": [
+        [
+          {
+            "node": "📤 Success Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 Comprehensive Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🚨 Enhanced No Results Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Enhanced No Results Handler": {
+      "main": [
+        [
+          {
+            "node": "📤 Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T12:00:00.000Z",
+      "updatedAt": "2024-01-15T12:00:00.000Z",
+      "id": "comprehensive-smart-search",
+      "name": "Comprehensive Smart Search"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-15T12:00:00.000Z",
+  "versionId": "comprehensive-v1"
+}
